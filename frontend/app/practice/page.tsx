@@ -5,6 +5,7 @@ import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import { useLabStore } from "@/lib/store";
 import { evaluateGesture, Landmark } from "@/lib/gestureClassifier";
 import { Camera, Check, HelpCircle, AlertTriangle, Play, RefreshCw, Save } from "lucide-react";
+import AITutorGuide from "@/components/AITutorGuide";
 
 export default function PracticePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -266,6 +267,14 @@ export default function PracticePage() {
           </div>
         </div>
 
+        {/* AI Tutor Companion */}
+        <AITutorGuide
+          signName={currentSign.name}
+          accuracyScore={similarityScore}
+          feedbackText={feedback}
+          isActive={webcamActive}
+        />
+
         {/* Calculations / Similarity Score */}
         <div className="lab-card p-6 relative">
           <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 mb-4">
@@ -287,16 +296,6 @@ export default function PracticePage() {
               style={{ width: `${similarityScore}%` }}
               className="h-full bg-[#556B2F] border-r border-[#2F241F] transition-all duration-300"
             />
-          </div>
-
-          {/* Smart feedback annotation log */}
-          <div className="lab-panel p-4 border-l-4 border-l-[#B5651D] rounded-xl mb-6">
-            <span className="text-[10px] font-mono text-[#B5651D] font-bold uppercase block mb-1">
-              Feedback Annotation
-            </span>
-            <p className="text-xs text-[#2F241F] leading-relaxed">
-              {feedback}
-            </p>
           </div>
 
           {/* Record button */}

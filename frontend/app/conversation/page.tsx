@@ -5,6 +5,7 @@ import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import { evaluateGesture, Landmark } from "@/lib/gestureClassifier";
 import { MessageSquare, Camera, Sparkles, Send, CheckCircle2, ChevronRight, HelpCircle, Loader2, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import AITutorGuide from "@/components/AITutorGuide";
 
 interface Step {
   question: string;
@@ -323,7 +324,7 @@ export default function ConversationPage() {
       </div>
 
       {/* Right panel: Conversational Chat UI */}
-      <div className="lg:col-span-5 flex flex-col glass-panel rounded-3xl overflow-hidden border border-white/10 h-full max-h-[700px]">
+      <div className="lg:col-span-5 flex flex-col glass-panel rounded-3xl overflow-hidden border border-white/10 h-full max-h-[850px]">
         {/* Chat Header */}
         <div className="border-b border-white/5 bg-slate-900/40 p-5 flex items-center gap-3">
           <div className="rounded-xl bg-gradient-to-tr from-purple-500 to-pink-500 p-2 text-white shadow-md">
@@ -334,6 +335,17 @@ export default function ConversationPage() {
             <span className="text-xs text-slate-400">Interactive Sign Guide</span>
           </div>
         </div>
+
+        {selectedScenario && currentStepIdx !== -1 && (
+          <div className="p-4 border-b border-white/5 bg-slate-950/20">
+            <AITutorGuide
+              signName={selectedScenario.steps[currentStepIdx].answer}
+              accuracyScore={accuracy}
+              feedbackText={feedback}
+              isActive={webcamActive}
+            />
+          </div>
+        )}
 
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
