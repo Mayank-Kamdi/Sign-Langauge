@@ -30,11 +30,12 @@ class Sign(Base):
     __tablename__ = "signs"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True, nullable=False)  # e.g., 'A', 'B', 'Hello', '1'
+    name = Column(String, index=True, nullable=False)  # e.g., 'A', 'B', 'Hello', '1'
     category = Column(String, nullable=False)  # 'alphabets', 'numbers', 'phrases'
     description = Column(String)
     visual_guide = Column(String)  # description or hints on how to perform it
     difficulty = Column(String, default="easy")  # 'easy', 'medium', 'hard'
+    region = Column(String, default="ISL", nullable=False)  # 'ISL', 'ASL', 'BSL'
 
     progress = relationship("UserProgress", back_populates="sign", cascade="all, delete-orphan")
 

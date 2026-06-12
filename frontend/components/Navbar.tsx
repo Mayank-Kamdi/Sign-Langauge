@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Beaker, Scroll, Binary, Clipboard } from "lucide-react";
+import { Beaker } from "lucide-react";
+import { useLabStore } from "@/lib/store";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { selectedRegion, setRegion } = useLabStore();
 
   const links = [
     { href: "/", label: "🔬 Workstation", match: "/" },
@@ -18,13 +20,27 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[#E8DCC4] border-b-4 border-[#2F241F] py-2 shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-14 items-center justify-between">
-          <div className="flex items-center">
+          <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-2.5">
               <Beaker className="h-6 w-6 text-[#556B2F]" />
-              <span className="font-bold text-lg tracking-tight font-display text-[#2F241F]">
+              <span className="font-bold text-lg tracking-tight font-display text-[#2F241F] hidden sm:inline">
                 SignVerse <span className="text-[#3D4F73] font-mono text-xs border border-[#2F241F] px-1 bg-[#DCC9A3] rounded">PROTOTYPE-1</span>
               </span>
             </Link>
+
+            {/* Region Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[#2F241F] font-mono hidden md:inline">🌐 MODE:</span>
+              <select
+                value={selectedRegion}
+                onChange={(e) => setRegion(e.target.value as any)}
+                className="bg-[#DCC9A3] text-[#2F241F] border-2 border-[#2F241F] font-bold text-xs rounded px-2 py-1 outline-none cursor-pointer hover:bg-[#F5EBD7] transition-all"
+              >
+                <option value="ISL">🇮🇳 ISL (Indian)</option>
+                <option value="ASL">🇺🇸 ASL (American)</option>
+                <option value="BSL">🇬🇧 BSL (British)</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">

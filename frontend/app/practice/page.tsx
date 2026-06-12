@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import { useLabStore } from "@/lib/store";
 import { evaluateGesture, Landmark } from "@/lib/gestureClassifier";
-import { Camera, Check, HelpCircle, AlertTriangle, Play, RefreshCw, Save } from "lucide-react";
+import { Camera, Save } from "lucide-react";
 import AITutorGuide from "@/components/AITutorGuide";
+import Link from "next/link";
 
 export default function PracticePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -20,7 +21,7 @@ export default function PracticePage() {
     initializeStore,
   } = useLabStore();
 
-  const currentSign = lessons[currentSignIndex];
+  const currentSign = lessons[currentSignIndex] || { name: "", description: "", guide: "" };
 
   const [landmarker, setLandmarker] = useState<HandLandmarker | null>(null);
   const [modelLoading, setModelLoading] = useState(true);
@@ -76,9 +77,33 @@ export default function PracticePage() {
     }
   };
 
+  // Webcam Track Cleanup Effect
+  useEffect(() => {
+    return () => {
+      // Stop webcam tracks on component unmount
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        const tracks = stream.getTracks();
+        tracks.forEach((track) => track.stop());
+      }
+      setWebcamActive(false);
+    };
+  }, [setWebcamActive]);
+
+  useEffect(() => {
+    if (!webcamActive) {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        const tracks = stream.getTracks();
+        tracks.forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    }
+  }, [webcamActive]);
+
   // Main Detection Loop
   useEffect(() => {
-    if (!webcamActive || !landmarker || !videoRef.current || !canvasRef.current) return;
+    if (!webcamActive || !landmarker || !videoRef.current || !canvasRef.current || !currentSign.name) return;
 
     let frameId: number;
     const video = videoRef.current;
@@ -170,143 +195,155 @@ export default function PracticePage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      {/* Left Column: Webcam observer monitor */}
-      <div className="lg:col-span-7 flex flex-col gap-6">
-        <div>
-          <span className="font-mono text-xs text-[#B5651D] font-bold uppercase tracking-wider block mb-1">
-            HARDWARE INTERFACE
-          </span>
-          <h2 className="text-2xl font-bold font-display text-[#2F241F]">
-            ⚙️ Real-time Observation Deck
-          </h2>
-        </div>
-
-        {/* Vintage Monitor Screen */}
-        <div className="relative aspect-video w-full lab-monitor overflow-hidden bg-[#22252A]">
-          {!webcamActive && (
-            <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-6 z-20">
-              <Camera className="h-14 w-14 text-slate-500 mb-4" />
-              <h3 className="text-[#F5EBD7] font-display font-bold text-lg mb-2">Webcam Feed Inactive</h3>
-              <p className="text-slate-400 text-xs max-w-sm mb-6">
-                Active hand observation requires local camera frame capture processing.
-              </p>
-              <button
-                onClick={startCamera}
-                disabled={modelLoading}
-                className="lab-button py-2.5 px-6 uppercase text-xs tracking-wider"
-              >
-                {modelLoading ? "Downloading Models..." : "Start Camera Feed"}
-              </button>
-            </div>
-          )}
-
-          <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
-          <canvas ref={canvasRef} width={640} height={480} className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-10 pointer-events-none" />
-        </div>
-
-        {/* Observation statistics panels */}
-        <div className="grid grid-cols-3 gap-4 font-mono text-xs">
-          <div className="lab-panel p-3 text-center">
-            <span className="text-slate-600 block text-[10px] uppercase font-bold">Hands Detected</span>
-            <span className="text-lg font-bold text-[#2F241F]">{detectedHandsCount}</span>
-          </div>
-          <div className="lab-panel p-3 text-center">
-            <span className="text-slate-600 block text-[10px] uppercase font-bold">Landmark Nodes</span>
-            <span className="text-lg font-bold text-[#2F241F]">
-              {detectedHandsCount > 0 ? "21 / Hand" : "0"}
-            </span>
-          </div>
-          <div className="lab-panel p-3 text-center">
-            <span className="text-slate-600 block text-[10px] uppercase font-bold">Fitting Confidence</span>
-            <span className="text-lg font-bold text-[#2F241F]">{Math.round(confidence * 100)}%</span>
-          </div>
-        </div>
-
-        {/* Raw landmark joint telemetry coordinates log */}
-        <div className="lab-card p-4">
-          <h4 className="text-xs font-mono font-bold text-[#2F241F] border-b border-[#2F241F]/10 pb-2 mb-3">
-            [Telemetry Data Log] Active Joint Coordinates
-          </h4>
-          <div className="max-h-[140px] overflow-y-auto font-mono text-[10px] text-slate-600 grid grid-cols-2 gap-x-6 gap-y-1 pr-2">
-            {rawCoordinates.length > 0 ? (
-              rawCoordinates.slice(0, 10).map((pt, idx) => (
-                <div key={idx} className="flex justify-between border-b border-[#2F241F]/5 py-0.5">
-                  <span>Joint #{idx}:</span>
-                  <span className="text-[#3D4F73]">
-                    ({pt.x.toFixed(3)}, {pt.y.toFixed(3)}, {pt.z.toFixed(3)})
-                  </span>
-                </div>
-              ))
-            ) : (
-              <span className="col-span-full text-slate-500 text-center py-2">
-                Waiting for active coordinate fitting frame logs...
-              </span>
-            )}
-          </div>
-        </div>
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col gap-6">
+      {/* Back Button Panel */}
+      <div className="flex justify-between items-center">
+        <Link
+          href="/learn"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#DCC9A3] hover:bg-[#F5EBD7] text-[#2F241F] border-2 border-[#2F241F] font-bold text-xs rounded transition-all shadow-[2px_2px_0px_#2F241F]"
+        >
+          ← Back to Study Guide
+        </Link>
       </div>
 
-      {/* Right Column: Calculations & Logging */}
-      <div className="lg:col-span-5 flex flex-col gap-6">
-        {/* Sign configuration card */}
-        <div className="lab-card p-6">
-          <span className="font-mono text-[10px] text-[#B5651D] font-bold uppercase tracking-wider block mb-1">
-            TARGET EXPERIMENT
-          </span>
-          <h3 className="text-3xl font-black text-[#2F241F] mb-1">
-            Sign: {currentSign.name}
-          </h3>
-          <p className="text-xs text-slate-600 leading-relaxed mb-4">
-            {currentSign.description}
-          </p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Column: Webcam observer monitor */}
+        <div className="lg:col-span-7 flex flex-col gap-6">
+          <div>
+            <span className="font-mono text-xs text-[#B5651D] font-bold uppercase tracking-wider block mb-1">
+              HARDWARE INTERFACE
+            </span>
+            <h2 className="text-2xl font-bold font-display text-[#2F241F]">
+              ⚙️ Real-time Observation Deck
+            </h2>
+          </div>
 
-          <div className="bg-[#F5EBD7] border border-[#2F241F]/15 rounded-lg p-3 text-[11px] text-slate-600 leading-relaxed font-mono">
-            <strong className="text-[#3D4F73] block mb-1">Configuration instructions:</strong>
-            {currentSign.guide}
+          {/* Vintage Monitor Screen */}
+          <div className="relative aspect-video w-full lab-monitor overflow-hidden bg-[#22252A]">
+            {!webcamActive && (
+              <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-6 z-20">
+                <Camera className="h-14 w-14 text-slate-500 mb-4" />
+                <h3 className="text-[#F5EBD7] font-display font-bold text-lg mb-2">Webcam Feed Inactive</h3>
+                <p className="text-slate-400 text-xs max-w-sm mb-6">
+                  Active hand observation requires local camera frame capture processing.
+                </p>
+                <button
+                  onClick={startCamera}
+                  disabled={modelLoading}
+                  className="lab-button py-2.5 px-6 uppercase text-xs tracking-wider"
+                >
+                  {modelLoading ? "Downloading Models..." : "Start Camera Feed"}
+                </button>
+              </div>
+            )}
+
+            <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
+            <canvas ref={canvasRef} width={640} height={480} className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-10 pointer-events-none" />
+          </div>
+
+          {/* Observation statistics panels */}
+          <div className="grid grid-cols-3 gap-4 font-mono text-xs">
+            <div className="lab-panel p-3 text-center">
+              <span className="text-slate-600 block text-[10px] uppercase font-bold">Hands Detected</span>
+              <span className="text-lg font-bold text-[#2F241F]">{detectedHandsCount}</span>
+            </div>
+            <div className="lab-panel p-3 text-center">
+              <span className="text-slate-600 block text-[10px] uppercase font-bold">Landmark Nodes</span>
+              <span className="text-lg font-bold text-[#2F241F]">
+                {detectedHandsCount > 0 ? "21 / Hand" : "0"}
+              </span>
+            </div>
+            <div className="lab-panel p-3 text-center">
+              <span className="text-slate-600 block text-[10px] uppercase font-bold">Fitting Confidence</span>
+              <span className="text-lg font-bold text-[#2F241F]">{Math.round(confidence * 100)}%</span>
+            </div>
+          </div>
+
+          {/* Raw landmark joint telemetry coordinates log */}
+          <div className="lab-card p-4">
+            <h4 className="text-xs font-mono font-bold text-[#2F241F] border-b border-[#2F241F]/10 pb-2 mb-3">
+              [Telemetry Data Log] Active Joint Coordinates
+            </h4>
+            <div className="max-h-[140px] overflow-y-auto font-mono text-[10px] text-slate-600 grid grid-cols-2 gap-x-6 gap-y-1 pr-2">
+              {rawCoordinates.length > 0 ? (
+                rawCoordinates.slice(0, 10).map((pt, idx) => (
+                  <div key={idx} className="flex justify-between border-b border-[#2F241F]/5 py-0.5">
+                    <span>Joint #{idx}:</span>
+                    <span className="text-[#3D4F73]">
+                      ({pt.x.toFixed(3)}, {pt.y.toFixed(3)}, {pt.z.toFixed(3)})
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <span className="col-span-full text-slate-500 text-center py-2">
+                  Waiting for active coordinate fitting frame logs...
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* AI Tutor Companion */}
-        <AITutorGuide
-          signName={currentSign.name}
-          accuracyScore={similarityScore}
-          feedbackText={feedback}
-          isActive={webcamActive}
-        />
-
-        {/* Calculations / Similarity Score */}
-        <div className="lab-card p-6 relative">
-          <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 mb-4">
-            Similarity Score Computation
-          </h4>
-
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-5xl font-black font-display text-[#2F241F] tracking-tight">
-              {similarityScore}%
+        {/* Right Column: Calculations & Logging */}
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          {/* Sign configuration card */}
+          <div className="lab-card p-6">
+            <span className="font-mono text-[10px] text-[#B5651D] font-bold uppercase tracking-wider block mb-1">
+              TARGET EXPERIMENT
             </span>
-            <span className={`text-xs font-mono font-bold uppercase ${scoreRating.color}`}>
-              ({scoreRating.label})
-            </span>
+            <h3 className="text-3xl font-black text-[#2F241F] mb-1">
+              Sign: {currentSign.name || "None Selected"}
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              {currentSign.description || "Select a lesson to begin."}
+            </p>
+
+            <div className="bg-[#F5EBD7] border border-[#2F241F]/15 rounded-lg p-3 text-[11px] text-slate-600 leading-relaxed font-mono">
+              <strong className="text-[#3D4F73] block mb-1">Configuration instructions:</strong>
+              {currentSign.guide || "No instructions loaded."}
+            </div>
           </div>
 
-          {/* Simple retro progress bar */}
-          <div className="h-4 w-full bg-[#DCC9A3] border border-[#2F241F] rounded overflow-hidden mb-6">
-            <div
-              style={{ width: `${similarityScore}%` }}
-              className="h-full bg-[#556B2F] border-r border-[#2F241F] transition-all duration-300"
-            />
-          </div>
+          {/* AI Tutor Companion */}
+          <AITutorGuide
+            signName={currentSign.name}
+            accuracyScore={similarityScore}
+            feedbackText={feedback}
+            isActive={webcamActive}
+          />
 
-          {/* Record button */}
-          <button
-            onClick={handleRecordAttempt}
-            disabled={similarityScore === 0}
-            className="w-full lab-button py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="h-4 w-4" />
-            Record Attempt Log
-          </button>
+          {/* Calculations / Similarity Score */}
+          <div className="lab-card p-6 relative">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 mb-4">
+              Similarity Score Computation
+            </h4>
+
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-5xl font-black font-display text-[#2F241F] tracking-tight">
+                {similarityScore}%
+              </span>
+              <span className={`text-xs font-mono font-bold uppercase ${scoreRating.color}`}>
+                ({scoreRating.label})
+              </span>
+            </div>
+
+            {/* Simple retro progress bar */}
+            <div className="h-4 w-full bg-[#DCC9A3] border border-[#2F241F] rounded overflow-hidden mb-6">
+              <div
+                style={{ width: `${similarityScore}%` }}
+                className="h-full bg-[#556B2F] border-r border-[#2F241F] transition-all duration-300"
+              />
+            </div>
+
+            {/* Record button */}
+            <button
+              onClick={handleRecordAttempt}
+              disabled={similarityScore === 0}
+              className="w-full lab-button py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save className="h-4 w-4" />
+              Record Attempt Log
+            </button>
+          </div>
         </div>
       </div>
     </div>

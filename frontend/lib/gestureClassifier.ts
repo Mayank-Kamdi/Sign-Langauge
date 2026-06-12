@@ -1,3 +1,5 @@
+import { getReferenceLandmarks } from "./referenceGestures";
+
 export interface Landmark {
   x: number;
   y: number;
@@ -31,7 +33,6 @@ export function isFingerExtended(
   dipIndex: number,
   tipIndex: number
 ): boolean {
-  // If the distance from MCP to Tip is close to the sum of segments, it is extended
   const mcpToTip = getDistance(landmarks[mcpIndex], landmarks[tipIndex]);
   const segmentsSum =
     getDistance(landmarks[mcpIndex], landmarks[pipIndex]) +
@@ -47,11 +48,60 @@ export function isFingerCurled(
   mcpIndex: number,
   tipIndex: number
 ): boolean {
-  // If the tip is closer to the wrist (landmark 0) or MCP than the PIP joint, it is curled
   const wrist = landmarks[0];
   const tipToWrist = getDistance(landmarks[tipIndex], wrist);
   const mcpToWrist = getDistance(landmarks[mcpIndex], wrist);
   return tipToWrist < mcpToWrist * 0.95;
+}
+
+// Normalize a hand's landmarks to make them position and scale invariant
+function normalizeLandmarks(landmarks: Landmark[]) {
+  if (landmarks.length === 0) return [];
+  const wrist = landmarks[0];
+  
+  // Translate so wrist is at origin
+  const translated = landmarks.map(pt => ({
+    x: pt.x - wrist.x,
+    y: pt.y - wrist.y,
+    z: pt.z - wrist.z
+  }));
+  
+  // Compute scale based on the average distance of finger bases (5, 9, 13, 17) from wrist
+  let sumDist = 0;
+  const bases = [5, 9, 13, 17];
+  bases.forEach(idx => {
+    sumDist += Math.sqrt(translated[idx].x**2 + translated[idx].y**2 + translated[idx].z**2);
+  });
+  const avgDist = sumDist / 4;
+  const scale = avgDist > 0 ? 1.0 / avgDist : 1.0;
+  
+  return translated.map(pt => ({
+    x: pt.x * scale,
+    y: pt.y * scale,
+    z: pt.z * scale
+  }));
+}
+
+// Compute similarity score (0 to 1) based on normalized landmark Euclidean distances
+function getLandmarkSimilarity(detected: Landmark[], reference: Landmark[]): number {
+  const normDet = normalizeLandmarks(detected);
+  const normRef = normalizeLandmarks(reference);
+  
+  if (normDet.length === 0 || normRef.length === 0) return 0;
+  
+  let totalDist = 0;
+  for (let i = 0; i < 21; i++) {
+    totalDist += Math.sqrt(
+      Math.pow(normDet[i].x - normRef[i].x, 2) +
+      Math.pow(normDet[i].y - normRef[i].y, 2) +
+      Math.pow(normDet[i].z - normRef[i].z, 2)
+    );
+  }
+  
+  const avgDist = totalDist / 21;
+  // Map average distance to a score where 0 distance is 1.0, and 0.45 is 0.0
+  const score = Math.max(0, 1 - avgDist * 2.2);
+  return score;
 }
 
 // Specific Gesture Rules
@@ -66,16 +116,46 @@ export function evaluateGesture(
   // Normalize sign name
   const sign = targetSign.toUpperCase().trim();
 
-  // Extract primary hand (usually right hand or the first detected)
+  // Extract primary hand
   const primaryHand = hands[0];
   const lm = primaryHand.landmarks;
 
   // Finger extension states
-  const thumbExtended = getDistance(lm[4], lm[9]) > getDistance(lm[2], lm[9]) * 1.2; // Custom thumb extension
+  const thumbExtended = getDistance(lm[4], lm[9]) > getDistance(lm[2], lm[9]) * 1.15;
   const indexExtended = isFingerExtended(lm, 5, 6, 7, 8);
   const middleExtended = isFingerExtended(lm, 9, 10, 11, 12);
   const ringExtended = isFingerExtended(lm, 13, 14, 15, 16);
   const pinkyExtended = isFingerExtended(lm, 17, 18, 19, 20);
+
+  // Active Practice/Lesson Signs
+  if (sign === "HELLO" || sign === "PLEASE" || sign === "THANK YOU") {
+    const isCorrect = indexExtended && middleExtended && ringExtended && pinkyExtended;
+    let feedback = `Hold your hand flat and open for ${targetSign}.`;
+    if (!isCorrect) {
+      feedback += " Spread and extend all your fingers.";
+    }
+    return { isMatch: isCorrect, score: isCorrect ? 0.95 : 0.4, feedback };
+  }
+
+  if (sign === "YES" || sign === "SORRY") {
+    const isCorrect = !indexExtended && !middleExtended && !ringExtended && !pinkyExtended;
+    let feedback = `Make a closed fist for ${targetSign}.`;
+    if (!isCorrect) {
+      feedback += " Curl all of your fingers into your palm.";
+    }
+    return { isMatch: isCorrect, score: isCorrect ? 0.95 : 0.3, feedback };
+  }
+
+  if (sign === "NO") {
+    // Bring index, middle, and thumb together, pinky and ring curled
+    const tipsClose = getDistance(lm[4], lm[8]) < 0.07 && getDistance(lm[4], lm[12]) < 0.07;
+    const isCorrect = tipsClose && !ringExtended && !pinkyExtended;
+    let feedback = "Bring index, middle, and thumb tips together, keeping ring and pinky curled.";
+    if (ringExtended || pinkyExtended) {
+      feedback += " Fold your ring and pinky fingers in.";
+    }
+    return { isMatch: isCorrect, score: isCorrect ? 0.92 : 0.35, feedback };
+  }
 
   // Single Hand Numbers
   if (sign === "1") {
@@ -118,7 +198,6 @@ export function evaluateGesture(
   }
 
   if (sign === "0") {
-    // Tips of index and thumb are close together
     const indexThumbDist = getDistance(lm[4], lm[8]);
     const isCorrect = indexThumbDist < 0.05 && !middleExtended && !ringExtended && !pinkyExtended;
     let feedback = "Form a circle with your thumb and index finger.";
@@ -128,7 +207,6 @@ export function evaluateGesture(
 
   // Alphabets A, B, C, D, I, Y etc.
   if (sign === "A") {
-    // Closed fist, thumb on side pointing up
     const allFingersCurled = !indexExtended && !middleExtended && !ringExtended && !pinkyExtended;
     const isCorrect = allFingersCurled && thumbExtended;
     let feedback = "Make a fist with your thumb pointing straight up beside it.";
@@ -138,7 +216,6 @@ export function evaluateGesture(
   }
 
   if (sign === "B") {
-    // Open flat hand, thumb folded
     const allExtended = indexExtended && middleExtended && ringExtended && pinkyExtended;
     const isCorrect = allExtended && !thumbExtended;
     let feedback = "Hold your hand flat with fingers together, thumb folded across palm.";
@@ -147,7 +224,6 @@ export function evaluateGesture(
   }
 
   if (sign === "C") {
-    // Curved hand shape
     const wrist = lm[0];
     const indexDist = getDistance(lm[8], wrist);
     const thumbDist = getDistance(lm[4], wrist);
@@ -173,7 +249,6 @@ export function evaluateGesture(
     const lLm = leftHand.landmarks;
 
     if (sign === "FAMILY") {
-      // Connect index and thumbs of both hands
       const indexDist = getDistance(rLm[8], lLm[8]);
       const thumbDist = getDistance(rLm[4], lLm[4]);
       const isCorrect = indexDist < 0.08 && thumbDist < 0.08;
@@ -182,7 +257,6 @@ export function evaluateGesture(
     }
 
     if (sign === "FRIEND") {
-      // Interlock index fingers
       const rIndexToLIndex = getDistance(rLm[8], lLm[8]);
       const rIndexToLWrist = getDistance(rLm[8], lLm[0]);
       const isCorrect = rIndexToLIndex < 0.06 && rIndexToLWrist < 0.15;
@@ -191,14 +265,27 @@ export function evaluateGesture(
     }
   }
 
-  // Fallback match for demo/other letters: Check if hands are steady
-  // If target sign is not specifically coded, we evaluate if the hand is upright
+  // Fallback generalized template matching using normalized landmark similarity
+  const refLandmarks = getReferenceLandmarks(targetSign);
+  if (refLandmarks && refLandmarks.length === 21) {
+    const similarity = getLandmarkSimilarity(lm, refLandmarks);
+    const isMatch = similarity > 0.75;
+    return {
+      isMatch,
+      score: similarity,
+      feedback: isMatch 
+        ? `Looking good! Hold the posture steady for ${targetSign}.` 
+        : `Align your hand to match the gesture shape for ${targetSign}.`
+    };
+  }
+
+  // Fallback match: Check if hands are steady
   const palmUpright = lm[12].y < lm[0].y;
   return {
     isMatch: palmUpright,
-    score: palmUpright ? 0.85 : 0.1,
+    score: palmUpright ? 0.70 : 0.1,
     feedback: palmUpright 
-      ? `Looking good! Hold the posture steady for ${targetSign}.` 
+      ? `Hold the posture steady for ${targetSign}.` 
       : "Position your hand in front of the camera, fingers pointing upwards."
   };
 }

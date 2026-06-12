@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import { evaluateGesture, Landmark } from "@/lib/gestureClassifier";
-import { MessageSquare, Camera, Sparkles, Send, CheckCircle2, ChevronRight, HelpCircle, Loader2, RefreshCw } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { MessageSquare, Camera, Sparkles, Send, ChevronRight } from "lucide-react";
+import { useLabStore } from "@/lib/store";
 import AITutorGuide from "@/components/AITutorGuide";
 
 interface Step {
@@ -30,6 +30,8 @@ interface ChatMessage {
 export default function ConversationPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const { selectedRegion } = useLabStore();
 
   const [landmarker, setLandmarker] = useState<HandLandmarker | null>(null);
   const [modelLoading, setModelLoading] = useState(true);
@@ -136,6 +138,35 @@ export default function ConversationPage() {
     }
   };
 
+  // Webcam Track Cleanup Effect
+  useEffect(() => {
+    return () => {
+      // Stop webcam tracks on component unmount
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        const tracks = stream.getTracks();
+        tracks.forEach((track) => track.stop());
+      }
+      setWebcamActive(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!webcamActive) {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        const tracks = stream.getTracks();
+        tracks.forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    }
+  }, [webcamActive]);
+
+  const exitSession = () => {
+    setSelectedScenario(null);
+    setWebcamActive(false);
+  };
+
   // Detection loop for current sign step
   useEffect(() => {
     if (!webcamActive || !landmarker || !videoRef.current || !canvasRef.current || !selectedScenario) return;
@@ -144,7 +175,9 @@ export default function ConversationPage() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    const targetSign = selectedScenario.steps[currentStepIdx].answer;
+    const targetSign = selectedScenario.steps[currentStepIdx]?.answer;
+
+    if (!targetSign) return;
 
     const runDetection = () => {
       if (video.readyState >= 2) {
@@ -230,6 +263,7 @@ export default function ConversationPage() {
             sign_name: currentStep.answer,
             accuracy_score: accuracy,
             status: "practiced",
+            region: selectedRegion
           }),
         });
       } catch (err) {
@@ -259,8 +293,8 @@ export default function ConversationPage() {
         {!selectedScenario ? (
           <div className="flex flex-col gap-6">
             <div>
-              <h1 className="text-3xl font-extrabold text-white mb-2">AI Conversation Mode</h1>
-              <p className="text-slate-400">Select a real-world scenario to practice conversational Indian Sign Language.</p>
+              <h1 className="text-3xl font-extrabold text-[#2F241F] mb-2 font-display">💬 AI Conversation Mode</h1>
+              <p className="text-slate-600">Select a real-world scenario to practice conversational Sign Language.</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -268,14 +302,14 @@ export default function ConversationPage() {
                 <div
                   key={scenario.id}
                   onClick={() => selectScenario(scenario)}
-                  className="glass-panel hover:border-purple-500/30 hover:bg-slate-900/60 p-6 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col justify-between"
+                  className="bg-[#DCC9A3] border-4 border-[#2F241F] hover:bg-[#F5EBD7] p-6 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col justify-between shadow-[4px_4px_0px_#2F241F] hover:translate-y-[-2px]"
                 >
                   <div>
                     <span className="text-4xl block mb-4">{scenario.icon}</span>
-                    <h3 className="text-xl font-bold text-white mb-2">{scenario.title}</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-6">{scenario.description}</p>
+                    <h3 className="text-xl font-bold text-[#2F241F] mb-2">{scenario.title}</h3>
+                    <p className="text-slate-700 text-sm leading-relaxed mb-6">{scenario.description}</p>
                   </div>
-                  <span className="text-xs font-bold text-purple-400 flex items-center gap-1">
+                  <span className="text-xs font-bold text-[#3D4F73] flex items-center gap-1">
                     Start Dialogue <ChevronRight className="h-4 w-4" />
                   </span>
                 </div>
@@ -286,24 +320,24 @@ export default function ConversationPage() {
           <div className="flex flex-col gap-4 flex-1">
             <div className="flex justify-between items-center">
               <button
-                onClick={() => setSelectedScenario(null)}
-                className="text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                onClick={exitSession}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#DCC9A3] hover:bg-[#F5EBD7] text-[#2F241F] border-2 border-[#2F241F] font-bold text-xs rounded transition-all shadow-[2px_2px_0px_#2F241F]"
               >
-                ← Back to Scenarios
+                ← Exit Session
               </button>
-              <span className="text-xs font-bold text-purple-400">
+              <span className="text-xs font-bold text-[#3D4F73] font-mono bg-[#DCC9A3] px-2.5 py-1 border-2 border-[#2F241F] rounded">
                 Scenario: {selectedScenario.title}
               </span>
             </div>
 
-            <div className="relative aspect-video w-full rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex-1 min-h-[300px]">
+            <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-[#22252A] border-4 border-[#2F241F] shadow-[4px_4px_0px_#2F241F] flex-1 min-h-[300px]">
               {!webcamActive && (
-                <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-6 bg-slate-950/70 backdrop-blur-sm z-20">
-                  <Camera className="h-12 w-12 text-purple-400 mb-3 animate-pulse" />
-                  <h3 className="text-lg font-bold mb-2">Enable Webcam for Dialogue</h3>
+                <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-6 z-20">
+                  <Camera className="h-12 w-12 text-slate-500 mb-3 animate-pulse" />
+                  <h3 className="text-[#F5EBD7] font-bold text-lg mb-2">Enable Webcam for Dialogue</h3>
                   <button
                     onClick={startWebcam}
-                    className="rounded-xl bg-purple-600 hover:bg-purple-500 px-5 py-2.5 font-bold text-white shadow-lg transition-all"
+                    className="lab-button px-5 py-2.5 font-bold uppercase text-xs tracking-wider"
                   >
                     Start Camera
                   </button>
@@ -315,29 +349,29 @@ export default function ConversationPage() {
             </div>
 
             {/* Smart Coaching feedback banner */}
-            <div className="glass-panel rounded-2xl p-4 border-l-4 border-l-purple-500">
-              <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">Live Feedback</span>
-              <p className="text-sm font-medium text-slate-200">{feedback}</p>
+            <div className="bg-[#DCC9A3] border-4 border-[#2F241F] rounded-2xl p-4 shadow-[4px_4px_0px_#2F241F]">
+              <span className="text-[10px] font-bold text-[#B5651D] uppercase tracking-wider block">Live Feedback</span>
+              <p className="text-sm font-bold text-[#2F241F]">{feedback}</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Right panel: Conversational Chat UI */}
-      <div className="lg:col-span-5 flex flex-col glass-panel rounded-3xl overflow-hidden border border-white/10 h-full max-h-[850px]">
+      <div className="lg:col-span-5 flex flex-col bg-[#E8DCC4] rounded-3xl overflow-hidden border-4 border-[#2F241F] h-full max-h-[850px] shadow-[4px_4px_0px_#2F241F]">
         {/* Chat Header */}
-        <div className="border-b border-white/5 bg-slate-900/40 p-5 flex items-center gap-3">
-          <div className="rounded-xl bg-gradient-to-tr from-purple-500 to-pink-500 p-2 text-white shadow-md">
+        <div className="border-b-4 border-[#2F241F] bg-[#DCC9A3] p-5 flex items-center gap-3">
+          <div className="rounded-xl bg-[#556B2F] p-2 text-white border-2 border-[#2F241F] shadow-[2px_2px_0px_#2F241F]">
             <MessageSquare className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-bold text-white">Conversation Companion</h3>
-            <span className="text-xs text-slate-400">Interactive Sign Guide</span>
+            <h3 className="font-bold text-[#2F241F]">Conversation Companion</h3>
+            <span className="text-xs text-slate-700">Interactive Sign Guide</span>
           </div>
         </div>
 
         {selectedScenario && currentStepIdx !== -1 && (
-          <div className="p-4 border-b border-white/5 bg-slate-950/20">
+          <div className="p-4 border-b-2 border-[#2F241F] bg-[#F5EBD7]">
             <AITutorGuide
               signName={selectedScenario.steps[currentStepIdx].answer}
               accuracyScore={accuracy}
@@ -350,9 +384,9 @@ export default function ConversationPage() {
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
           {chatHistory.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 gap-2">
-              <Sparkles className="h-8 w-8 text-slate-700" />
-              <p className="text-sm">Choose a scenario on the left to start your conversational practice.</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-600 gap-2">
+              <Sparkles className="h-8 w-8 text-slate-400" />
+              <p className="text-sm font-bold">Choose a scenario on the left to start your conversational practice.</p>
             </div>
           ) : (
             chatHistory.map((msg, idx) => (
@@ -363,10 +397,10 @@ export default function ConversationPage() {
                 }`}
               >
                 <div
-                  className={`rounded-2xl px-4 py-2.5 text-sm ${
+                  className={`rounded-2xl px-4 py-2.5 text-sm border-2 border-[#2F241F] ${
                     msg.sender === "user"
-                      ? "bg-purple-600 text-white rounded-tr-none font-bold"
-                      : "bg-slate-800 text-slate-100 rounded-tl-none leading-relaxed"
+                      ? "bg-[#556B2F] text-white rounded-tr-none font-bold"
+                      : "bg-[#DCC9A3] text-[#2F241F] rounded-tl-none leading-relaxed font-bold"
                   }`}
                 >
                   {msg.text}
@@ -378,25 +412,25 @@ export default function ConversationPage() {
 
         {/* Action input/Next trigger */}
         {selectedScenario && currentStepIdx !== -1 && (
-          <div className="border-t border-white/5 bg-slate-900/40 p-5">
-            <div className="bg-slate-950/50 rounded-xl p-3.5 border border-white/5 mb-4">
-              <div className="flex justify-between items-center text-xs font-bold text-slate-400 mb-1">
+          <div className="border-t-4 border-[#2F241F] bg-[#DCC9A3] p-5">
+            <div className="bg-[#F5EBD7] rounded-xl p-3.5 border-2 border-[#2F241F] mb-4">
+              <div className="flex justify-between items-center text-xs font-bold text-[#2F241F] mb-1">
                 <span>Task: Sign "{selectedScenario.steps[currentStepIdx].answer}"</span>
-                <span className="text-purple-400">Match: {Math.round(accuracy * 100)}%</span>
+                <span className="text-[#3D4F73]">Match: {Math.round(accuracy * 100)}%</span>
               </div>
-              <p className="text-xs text-slate-500 italic">Hint: {selectedScenario.steps[currentStepIdx].hint}</p>
+              <p className="text-xs text-slate-600 italic">Hint: {selectedScenario.steps[currentStepIdx].hint}</p>
             </div>
 
             {isSuccess ? (
               <button
                 onClick={handleNextStep}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 py-3.5 font-bold text-slate-950 shadow-lg shadow-emerald-500/10 transition-all"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#556B2F] hover:bg-[#6B8E23] py-3.5 font-bold text-white border-2 border-[#2F241F] shadow-[2px_2px_0px_#2F241F] transition-all"
               >
                 Send Verified Sign
                 <Send className="h-4 w-4" />
               </button>
             ) : (
-              <div className="w-full text-center text-xs font-medium text-slate-500 border border-dashed border-white/10 rounded-xl py-3.5">
+              <div className="w-full text-center text-xs font-bold text-slate-600 border-2 border-dashed border-[#2F241F]/40 rounded-xl py-3.5 bg-[#F5EBD7]">
                 Hold correct sign posture to send response...
               </div>
             )}

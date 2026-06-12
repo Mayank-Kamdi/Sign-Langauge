@@ -48,6 +48,7 @@ class SignBase(BaseModel):
     description: Optional[str] = None
     visual_guide: Optional[str] = None
     difficulty: str
+    region: str = "ISL"
 
 class SignResponse(SignBase):
     id: int
@@ -60,6 +61,7 @@ class ProgressCreate(BaseModel):
     sign_name: str
     accuracy_score: float
     status: str = "learned"  # 'learned' or 'practiced'
+    region: str = "ISL"
 
 class ProgressResponse(BaseModel):
     id: int

@@ -55,55 +55,65 @@ def startup_event():
     db = next(get_db())
     # 1. Seed signs if table is empty
     if db.query(models.Sign).count() == 0:
-        print("Seeding ISL Signs database...")
+        print("Seeding Regional Signs database...")
         signs_data = []
         
-        # Alphabets A-Z (26)
-        for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-            signs_data.append(models.Sign(
-                name=char,
-                category="alphabets",
-                description=f"Indian Sign Language alphabet '{char}' representation.",
-                visual_guide=f"Follow visual instructions to construct the letter '{char}' using your hands.",
-                difficulty="easy"
-            ))
-            
-        # Numbers 0-9 (10)
-        for num in range(10):
-            signs_data.append(models.Sign(
-                name=str(num),
-                category="numbers",
-                description=f"Indian Sign Language number '{num}' representation.",
-                visual_guide=f"Hold up corresponding finger positions to represent '{num}'.",
-                difficulty="easy"
-            ))
-            
-        # Common phrases (14)
-        phrases = [
-            ("Hello", "Greeting. Wave hand or bring open hand to forehead in a salute gesture.", "easy"),
-            ("Thank You", "Place the flat of your dominant hand on your chin, then move it down and forward.", "easy"),
-            ("Please", "Place open flat hand on chest and rotate in a circle.", "easy"),
-            ("Sorry", "Make a fist and rotate it in a circle over your chest.", "easy"),
-            ("Yes", "Make a fist and nod it up and down like a head nodding.", "easy"),
-            ("No", "Snap index, middle, and thumb fingers together.", "easy"),
-            ("Help", "Place flat dominant hand under closed non-dominant hand and lift up.", "medium"),
-            ("Good Morning", "Salute sign followed by index finger pointing upwards to represent rising sun.", "medium"),
-            ("Goodbye", "Wave hand with open palm moving fingers down and up.", "easy"),
-            ("Excuse Me", "Rub fingertips of one hand across open palm of other hand.", "medium"),
-            ("How Are You", "Bring chest height hands out from body pointing to chest then out to user.", "medium"),
-            ("I Love You", "Extend thumb, index, and pinky fingers while holding down middle and ring fingers.", "easy"),
-            ("Family", "Touch thumbs and index fingers of both hands in F shape, then draw circle outwards.", "hard"),
-            ("Friend", "Interlock your index fingers in an alternating hook pattern.", "medium"),
-        ]
+        regions = {
+            "ISL": "Indian Sign Language",
+            "ASL": "American Sign Language",
+            "BSL": "British Sign Language"
+        }
         
-        for name, guide, diff in phrases:
-            signs_data.append(models.Sign(
-                name=name,
-                category="phrases",
-                description=f"Common daily conversation phrase '{name}'.",
-                visual_guide=guide,
-                difficulty=diff
-            ))
+        for reg_code, reg_name in regions.items():
+            # Alphabets A-Z (26)
+            for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                signs_data.append(models.Sign(
+                    name=char,
+                    category="alphabets",
+                    description=f"{reg_name} alphabet '{char}' representation.",
+                    visual_guide=f"Follow visual instructions to construct the letter '{char}' using your hands in {reg_code} posture.",
+                    difficulty="easy",
+                    region=reg_code
+                ))
+                
+            # Numbers 0-9 (10)
+            for num in range(10):
+                signs_data.append(models.Sign(
+                    name=str(num),
+                    category="numbers",
+                    description=f"{reg_name} number '{num}' representation.",
+                    visual_guide=f"Hold up corresponding finger positions to represent '{num}' in {reg_code}.",
+                    difficulty="easy",
+                    region=reg_code
+                ))
+                
+            # Common phrases (14)
+            phrases = [
+                ("Hello", f"Greeting. Wave hand or salute gesture representing hello in {reg_code}.", "easy"),
+                ("Thank You", f"Place dominant hand fingertips to chin then move forward in {reg_code}.", "easy"),
+                ("Please", f"Place flat hand on chest and rotate in a circle in {reg_code}.", "easy"),
+                ("Sorry", f"Make a fist and rotate it in a circle over your chest in {reg_code}.", "easy"),
+                ("Yes", f"Make a fist and rock/nod it up and down in {reg_code}.", "easy"),
+                ("No", f"Snap index, middle, and thumb fingers together in {reg_code}.", "easy"),
+                ("Help", f"Place flat dominant hand under closed non-dominant hand and lift up in {reg_code}.", "medium"),
+                ("Good Morning", f"Salute sign followed by index pointing upward in {reg_code}.", "medium"),
+                ("Goodbye", f"Wave hand with open palm in {reg_code}.", "easy"),
+                ("Excuse Me", f"Rub fingertips of one hand across open palm of other hand in {reg_code}.", "medium"),
+                ("How Are You", f"Bring chest height hands out from body pointing to chest then out in {reg_code}.", "medium"),
+                ("I Love You", f"Extend thumb, index, and pinky fingers in {reg_code}.", "easy"),
+                ("Family", f"Touch thumbs and index fingers of both hands and draw circle in {reg_code}.", "hard"),
+                ("Friend", f"Interlock your index fingers in an alternating hook pattern in {reg_code}.", "medium"),
+            ]
+            
+            for name, guide, diff in phrases:
+                signs_data.append(models.Sign(
+                    name=name,
+                    category="phrases",
+                    description=f"Common daily conversation phrase '{name}' in {reg_name}.",
+                    visual_guide=guide,
+                    difficulty=diff,
+                    region=reg_code
+                ))
             
         db.add_all(signs_data)
         db.commit()
@@ -183,12 +193,14 @@ def get_me(current_user: models.User = Depends(get_current_user)):
 
 # DICTIONARY / LESSONS ENDPOINTS
 @app.get("/api/dictionary", response_model=List[schemas.SignResponse])
-def get_dictionary(category: Optional[str] = None, search: Optional[str] = None, db: Session = Depends(get_db)):
+def get_dictionary(category: Optional[str] = None, search: Optional[str] = None, region: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(models.Sign)
     if category:
         query = query.filter(models.Sign.category == category)
     if search:
         query = query.filter(models.Sign.name.ilike(f"%{search}%"))
+    if region:
+        query = query.filter(models.Sign.region == region)
     return query.all()
 
 @app.get("/api/dictionary/{sign_id}", response_model=schemas.SignResponse)
@@ -205,7 +217,10 @@ def save_progress(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    sign = db.query(models.Sign).filter(models.Sign.name == progress_in.sign_name).first()
+    sign = db.query(models.Sign).filter(
+        models.Sign.name == progress_in.sign_name,
+        models.Sign.region == progress_in.region
+    ).first()
     if not sign:
         raise HTTPException(status_code=404, detail="Sign not found")
         
