@@ -61,3 +61,26 @@ class Badge(Base):
     icon = Column(String, nullable=False)  # SVG emoji or icon identifier
 
     users = relationship("User", secondary=user_badges, back_populates="badges")
+
+class DatasetSample(Base):
+    __tablename__ = "dataset_samples"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sign_name = Column(String, index=True, nullable=False)
+    user_id = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    handedness = Column(String, nullable=False)
+    landmarks = Column(String, nullable=False)  # JSON-serialized list of 21 landmark coords
+    session_number = Column(Integer, default=1)
+
+class Experiment(Base):
+    __tablename__ = "experiments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    date = Column(DateTime, default=datetime.datetime.utcnow)
+    dataset_version = Column(String, nullable=False)
+    model_used = Column(String, nullable=False)
+    accuracy = Column(Float, nullable=False)
+    notes = Column(String, nullable=True)
+

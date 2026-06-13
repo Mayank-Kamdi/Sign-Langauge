@@ -69,6 +69,8 @@ export const useLabStore = create<LabState>((set, get) => ({
     set({ isLoadingLessons: true });
     try {
       const region = get().selectedRegion;
+      const prevSignName = get().lessons[get().currentSignIndex]?.name;
+
       const res = await fetch(`http://localhost:8000/api/dictionary?region=${region}`);
       if (!res.ok) throw new Error("Failed to fetch lessons");
       const data = await res.json();
@@ -81,20 +83,37 @@ export const useLabStore = create<LabState>((set, get) => ({
         category: item.category
       }));
       
-      set({ lessons: mappedLessons, currentSignIndex: 0 });
+      let newIndex = 0;
+      if (prevSignName) {
+        const foundIndex = mappedLessons.findIndex((l: any) => l.name === prevSignName);
+        if (foundIndex !== -1) {
+          newIndex = foundIndex;
+        }
+      }
+
+      set({ lessons: mappedLessons, currentSignIndex: newIndex });
     } catch (err) {
       console.error("Failed to load lessons", err);
       // Fallback local lessons if backend is offline
+      const fallbackLessons = [
+        { name: "Hello", description: "Standard salutary greeting gesture.", guide: "Place your dominant hand near your forehead in a salute-like posture, then extend fingers outward.", category: "phrases" },
+        { name: "Thank You", description: "Expression of appreciation or gratitude.", guide: "Touch your fingertips to your chin, then wave your hand down and forward toward the camera.", category: "phrases" },
+        { name: "Yes", description: "Affirmative confirmation response.", guide: "Make a loose fist with your dominant hand and rock/nod it up and down from the wrist.", category: "phrases" },
+        { name: "No", description: "Negative disagreement response.", guide: "Bring your index finger, middle finger, and thumb together, snapping them closed.", category: "phrases" },
+        { name: "Please", description: "Polite request sign.", guide: "Place your dominant hand flat on the center of your chest and rotate it in a circular motion.", category: "phrases" },
+        { name: "Sorry", description: "Expression of apology or regret.", guide: "Form a fist and rub it in a circular motion over your chest.", category: "phrases" },
+      ];
+      const prevSignName = get().lessons[get().currentSignIndex]?.name;
+      let newIndex = 0;
+      if (prevSignName) {
+        const foundIndex = fallbackLessons.findIndex((l: any) => l.name === prevSignName);
+        if (foundIndex !== -1) {
+          newIndex = foundIndex;
+        }
+      }
       set({
-        lessons: [
-          { name: "Hello", description: "Standard salutary greeting gesture.", guide: "Place your dominant hand near your forehead in a salute-like posture, then extend fingers outward.", category: "phrases" },
-          { name: "Thank You", description: "Expression of appreciation or gratitude.", guide: "Touch your fingertips to your chin, then wave your hand down and forward toward the camera.", category: "phrases" },
-          { name: "Yes", description: "Affirmative confirmation response.", guide: "Make a loose fist with your dominant hand and rock/nod it up and down from the wrist.", category: "phrases" },
-          { name: "No", description: "Negative disagreement response.", guide: "Bring your index finger, middle finger, and thumb together, snapping them closed.", category: "phrases" },
-          { name: "Please", description: "Polite request sign.", guide: "Place your dominant hand flat on the center of your chest and rotate it in a circular motion.", category: "phrases" },
-          { name: "Sorry", description: "Expression of apology or regret.", guide: "Form a fist and rub it in a circular motion over your chest.", category: "phrases" },
-        ],
-        currentSignIndex: 0
+        lessons: fallbackLessons,
+        currentSignIndex: newIndex
       });
     } finally {
       set({ isLoadingLessons: false });

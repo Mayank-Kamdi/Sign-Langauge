@@ -3,14 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import { useLabStore } from "@/lib/store";
-import { evaluateGesture, Landmark } from "@/lib/gestureClassifier";
+import { evaluateStaticGesture, evaluateDynamicGesture, isSignDynamic, Landmark } from "@/lib/gestureClassifier";
+import { getReferenceLandmarks } from "@/lib/referenceGestures";
 import { Camera, Save } from "lucide-react";
 import AITutorGuide from "@/components/AITutorGuide";
 import Link from "next/link";
 
 export default function PracticePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const userCanvasRef = useRef<HTMLCanvasElement>(null);
+  const expectedCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const {
     lessons,
@@ -19,9 +21,10 @@ export default function PracticePage() {
     setWebcamActive,
     logAttempt,
     initializeStore,
+    selectedRegion,
   } = useLabStore();
 
-  const currentSign = lessons[currentSignIndex] || { name: "", description: "", guide: "" };
+  const currentSign = lessons[currentSignIndex] || { name: "Hello", description: "", guide: "" };
 
   const [landmarker, setLandmarker] = useState<HandLandmarker | null>(null);
   const [modelLoading, setModelLoading] = useState(true);
@@ -30,6 +33,14 @@ export default function PracticePage() {
   const [detectedHandsCount, setDetectedHandsCount] = useState(0);
   const [confidence, setConfidence] = useState(0);
   const [rawCoordinates, setRawCoordinates] = useState<Landmark[]>([]);
+
+  // Telemetry trajectory queue for dynamic gestures
+  const [trajectoryQueue, setTrajectoryQueue] = useState<any[][]>([]);
+  const [incorrectFingers, setIncorrectFingers] = useState<string[]>([]);
+  const [missingMovement, setMissingMovement] = useState<string>("");
+  const [sequenceState, setSequenceState] = useState<string>("start");
+
+  const signMode = isSignDynamic(currentSign.name) ? ("dynamic" as const) : ("static" as const);
 
   useEffect(() => {
     initializeStore();
@@ -45,7 +56,7 @@ export default function PracticePage() {
             delegate: "GPU",
           },
           runningMode: "VIDEO",
-          numHands: 2,
+          numHands: 1,
         });
         setLandmarker(landmarkerInstance);
         setModelLoading(false);
@@ -77,37 +88,63 @@ export default function PracticePage() {
     }
   };
 
-  // Webcam Track Cleanup Effect
   useEffect(() => {
     return () => {
-      // Stop webcam tracks on component unmount
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
-        const tracks = stream.getTracks();
-        tracks.forEach((track) => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       }
       setWebcamActive(false);
     };
   }, [setWebcamActive]);
 
+  // Render Expected Canvas Preview (Side-by-Side Left)
   useEffect(() => {
-    if (!webcamActive) {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        const tracks = stream.getTracks();
-        tracks.forEach((track) => track.stop());
-        videoRef.current.srcObject = null;
-      }
-    }
-  }, [webcamActive]);
+    const canvas = expectedCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-  // Main Detection Loop
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw reference skeleton
+    const refLandmarks = getReferenceLandmarks(currentSign.name);
+    if (!refLandmarks || refLandmarks.length === 0) return;
+
+    const scaleX = canvas.width;
+    const scaleY = canvas.height;
+
+    const drawLine = (pt1: number, pt2: number) => {
+      ctx.beginPath();
+      ctx.moveTo(refLandmarks[pt1].x * scaleX, refLandmarks[pt1].y * scaleY);
+      ctx.lineTo(refLandmarks[pt2].x * scaleX, refLandmarks[pt2].y * scaleY);
+      ctx.stroke();
+    };
+
+    ctx.strokeStyle = "#3D4F73";
+    ctx.lineWidth = 4;
+    for (let i = 0; i < 4; i++) drawLine(i, i + 1);
+    for (let i = 5; i < 8; i++) drawLine(i, i + 1);
+    for (let i = 9; i < 12; i++) drawLine(i, i + 1);
+    for (let i = 13; i < 16; i++) drawLine(i, i + 1);
+    for (let i = 17; i < 20; i++) drawLine(i, i + 1);
+    drawLine(0, 5); drawLine(5, 9); drawLine(9, 13); drawLine(13, 17); drawLine(0, 17);
+
+    refLandmarks.forEach((pt, idx) => {
+      ctx.beginPath();
+      ctx.arc(pt.x * scaleX, pt.y * scaleY, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = [4, 8, 12, 16, 20].includes(idx) ? "#B5651D" : "#556B2F";
+      ctx.fill();
+    });
+  }, [currentSign.name]);
+
+  // Main Detection Loop (Side-by-Side Right Canvas)
   useEffect(() => {
-    if (!webcamActive || !landmarker || !videoRef.current || !canvasRef.current || !currentSign.name) return;
+    if (!webcamActive || !landmarker || !videoRef.current || !userCanvasRef.current || !currentSign.name) return;
 
     let frameId: number;
     const video = videoRef.current;
-    const canvas = canvasRef.current;
+    const canvas = userCanvasRef.current;
     const ctx = canvas.getContext("2d");
 
     const runDetection = () => {
@@ -117,48 +154,99 @@ export default function PracticePage() {
 
         if (ctx) {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          setDetectedHandsCount(results.landmarks ? results.landmarks.length : 0);
+          const handCount = results.landmarks ? results.landmarks.length : 0;
+          setDetectedHandsCount((prev) => (prev !== handCount ? handCount : prev));
 
           if (results.landmarks && results.landmarks.length > 0) {
             const firstHand = results.landmarks[0] as Landmark[];
             setRawCoordinates(firstHand);
-            setConfidence(results.handednesses?.[0]?.[0]?.score || 0.92);
+            
+            const conf = results.handednesses?.[0]?.[0]?.score || 0.95;
+            setConfidence((prev) => (prev !== conf ? conf : prev));
 
-            const handsData = results.landmarks.map((list, index) => {
-              const label = results.handednesses?.[index]?.[0]?.categoryName || "Right";
-              return {
-                landmarks: list as Landmark[],
-                handedness: (label === "Left" ? "Left" : "Right") as "Left" | "Right",
-              };
-            });
+            const handsData = [{
+              landmarks: firstHand,
+              handedness: "Right" as const
+            }];
 
-            // Evaluate Sign
-            const evaluation = evaluateGesture(currentSign.name, handsData);
-            setFeedback(evaluation.feedback);
-            setSimilarityScore(Math.round(evaluation.score * 100));
+            let activeIncorrectFingers: string[] = [];
 
-            // Draw Skeletal Mesh lines
+            // Evaluate according to Sign Mode
+            if (signMode === "static") {
+              const evaluation = evaluateStaticGesture(currentSign.name, handsData, selectedRegion);
+              setFeedback((prev) => (prev !== evaluation.feedback ? evaluation.feedback : prev));
+              const score = Math.round(evaluation.score * 100);
+              setSimilarityScore((prev) => (prev !== score ? score : prev));
+              
+              activeIncorrectFingers = evaluation.incorrectFingers || [];
+              setIncorrectFingers((prev) => {
+                const changed = prev.length !== activeIncorrectFingers.length || 
+                                prev.some((v, i) => v !== activeIncorrectFingers[i]);
+                return changed ? activeIncorrectFingers : prev;
+              });
+              setMissingMovement((prev) => (prev !== "" ? "" : prev));
+            } else {
+              // Queue frames for trajectory processing
+              setTrajectoryQueue((prev) => {
+                const updated = [...prev, handsData].slice(-25); // retain last 25 frames
+                const evaluation = evaluateDynamicGesture(currentSign.name, updated, selectedRegion);
+                setFeedback((prev) => (prev !== evaluation.feedback ? evaluation.feedback : prev));
+                const score = Math.round(evaluation.score * 100);
+                setSimilarityScore((prev) => (prev !== score ? score : prev));
+                
+                const missing = evaluation.missingMovement || "";
+                setMissingMovement((prev) => (prev !== missing ? missing : prev));
+                
+                const seq = evaluation.sequenceState || "moving";
+                setSequenceState((prev) => (prev !== seq ? seq : prev));
+                return updated;
+              });
+            }
+
+            // Draw active skeleton with correction highlights
             results.landmarks.forEach((landmarks) => {
-              ctx.strokeStyle = "#556B2F"; // Forest Green skeleton line
-              ctx.lineWidth = 3;
-              const drawLine = (pt1: number, pt2: number) => {
+              const drawLine = (pt1: number, pt2: number, color: string) => {
                 ctx.beginPath();
                 ctx.moveTo(landmarks[pt1].x * canvas.width, landmarks[pt1].y * canvas.height);
                 ctx.lineTo(landmarks[pt2].x * canvas.width, landmarks[pt2].y * canvas.height);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 4;
                 ctx.stroke();
               };
-              for (let i = 0; i < 4; i++) drawLine(i, i + 1);
-              for (let i = 5; i < 8; i++) drawLine(i, i + 1);
-              for (let i = 9; i < 12; i++) drawLine(i, i + 1);
-              for (let i = 13; i < 16; i++) drawLine(i, i + 1);
-              for (let i = 17; i < 20; i++) drawLine(i, i + 1);
-              drawLine(0, 5); drawLine(5, 9); drawLine(9, 13); drawLine(13, 17); drawLine(0, 17);
 
-              // Draw point dots
-              landmarks.forEach((pt) => {
+              // Determine bone color alert configurations (red/green based on alignment checks)
+              // We check if fingers are incorrect to highlight them in red
+              const hasIncThumb = activeIncorrectFingers.includes("Thumb");
+              const hasIncIndex = activeIncorrectFingers.includes("Index");
+              const hasIncMiddle = activeIncorrectFingers.includes("Middle");
+              const hasIncRing = activeIncorrectFingers.includes("Ring");
+              const hasIncPinky = activeIncorrectFingers.includes("Pinky");
+
+              // Draw bones
+              const tCol = hasIncThumb ? "#A0522D" : "#556B2F";
+              for (let i = 0; i < 4; i++) drawLine(i, i + 1, tCol);
+
+              const iCol = hasIncIndex ? "#A0522D" : "#556B2F";
+              for (let i = 5; i < 8; i++) drawLine(i, i + 1, iCol);
+
+              const mCol = hasIncMiddle ? "#A0522D" : "#556B2F";
+              for (let i = 9; i < 12; i++) drawLine(i, i + 1, mCol);
+
+              const rCol = hasIncRing ? "#A0522D" : "#556B2F";
+              for (let i = 13; i < 16; i++) drawLine(i, i + 1, rCol);
+
+              const pCol = hasIncPinky ? "#A0522D" : "#556B2F";
+              for (let i = 17; i < 20; i++) drawLine(i, i + 1, pCol);
+
+              // Palm bases
+              ctx.strokeStyle = "#556B2F";
+              drawLine(0, 5, "#556B2F"); drawLine(5, 9, "#556B2F"); drawLine(9, 13, "#556B2F"); drawLine(13, 17, "#556B2F"); drawLine(0, 17, "#556B2F");
+
+              // Draw point nodes
+              landmarks.forEach((pt, idx) => {
                 ctx.beginPath();
-                ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 4, 0, 2 * Math.PI);
-                ctx.fillStyle = "#B5651D"; // Burnt Orange nodes
+                ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = [4, 8, 12, 16, 20].includes(idx) ? "#B5651D" : "#2F241F";
                 ctx.fill();
               });
             });
@@ -166,6 +254,7 @@ export default function PracticePage() {
             setSimilarityScore(0);
             setConfidence(0);
             setRawCoordinates([]);
+            setTrajectoryQueue([]);
           }
         }
       }
@@ -173,21 +262,8 @@ export default function PracticePage() {
     };
 
     runDetection();
-
-    return () => {
-      cancelAnimationFrame(frameId);
-    };
-  }, [webcamActive, landmarker, currentSignIndex, currentSign.name]);
-
-  // Scoring Level Descriptor
-  const getScoreRating = (score: number) => {
-    if (score >= 90) return { label: "Excellent Match", color: "text-[#6B8E23]" };
-    if (score >= 75) return { label: "Good Attempt", color: "text-[#3D4F73]" };
-    if (score >= 50) return { label: "Needs Improvement", color: "text-[#C9A227]" };
-    return { label: "Try Again", color: "text-[#A0522D]" };
-  };
-
-  const scoreRating = getScoreRating(similarityScore);
+    return () => cancelAnimationFrame(frameId);
+  }, [webcamActive, landmarker, currentSignIndex, currentSign.name, signMode]);
 
   const handleRecordAttempt = () => {
     logAttempt(currentSign.name, similarityScore);
@@ -207,38 +283,46 @@ export default function PracticePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Webcam observer monitor */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
+        {/* Left Column: Side-by-side monitors */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
           <div>
             <span className="font-mono text-xs text-[#B5651D] font-bold uppercase tracking-wider block mb-1">
-              HARDWARE INTERFACE
+              OBSERVATION DECK (MODE: {signMode.toUpperCase()})
             </span>
             <h2 className="text-2xl font-bold font-display text-[#2F241F]">
-              ⚙️ Real-time Observation Deck
+              ⚙️ Real-time Side-by-Side Comparison
             </h2>
           </div>
 
-          {/* Vintage Monitor Screen */}
-          <div className="relative aspect-video w-full lab-monitor overflow-hidden bg-[#22252A]">
-            {!webcamActive && (
-              <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-6 z-20">
-                <Camera className="h-14 w-14 text-slate-500 mb-4" />
-                <h3 className="text-[#F5EBD7] font-display font-bold text-lg mb-2">Webcam Feed Inactive</h3>
-                <p className="text-slate-400 text-xs max-w-sm mb-6">
-                  Active hand observation requires local camera frame capture processing.
-                </p>
-                <button
-                  onClick={startCamera}
-                  disabled={modelLoading}
-                  className="lab-button py-2.5 px-6 uppercase text-xs tracking-wider"
-                >
-                  {modelLoading ? "Downloading Models..." : "Start Camera Feed"}
-                </button>
+          {/* Skeletons Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Left: Expected Posture */}
+            <div className="flex flex-col gap-2">
+              <span className="font-mono text-[10px] text-slate-500 uppercase font-bold block">EXPECTED REFERENCE SHAPE</span>
+              <div className="bg-[#22252A] rounded-xl border-2 border-[#2F241F] aspect-video relative flex items-center justify-center overflow-hidden">
+                <canvas ref={expectedCanvasRef} width={320} height={240} className="w-full h-full object-contain" />
               </div>
-            )}
+            </div>
 
-            <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
-            <canvas ref={canvasRef} width={640} height={480} className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-10 pointer-events-none" />
+            {/* Right: Active Webcam Skeleton */}
+            <div className="flex flex-col gap-2">
+              <span className="font-mono text-[10px] text-slate-500 uppercase font-bold block">ACTIVE USER WEBCAM (HIGHLIGHTED)</span>
+              <div className="bg-[#22252A] rounded-xl border-2 border-[#2F241F] aspect-video relative flex items-center justify-center overflow-hidden">
+                {!webcamActive && (
+                  <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-4 z-20">
+                    <button
+                      onClick={startCamera}
+                      disabled={modelLoading}
+                      className="lab-button py-2 px-4 uppercase text-[10px] tracking-wider font-mono"
+                    >
+                      {modelLoading ? "Loading MediaPipe..." : "Start Camera Feed"}
+                    </button>
+                  </div>
+                )}
+                <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover scale-x-[-1] opacity-30" />
+                <canvas ref={userCanvasRef} width={320} height={240} className="absolute inset-0 w-full h-full object-cover scale-x-[-1] z-10 pointer-events-none" />
+              </div>
+            </div>
           </div>
 
           {/* Observation statistics panels */}
@@ -258,47 +342,23 @@ export default function PracticePage() {
               <span className="text-lg font-bold text-[#2F241F]">{Math.round(confidence * 100)}%</span>
             </div>
           </div>
-
-          {/* Raw landmark joint telemetry coordinates log */}
-          <div className="lab-card p-4">
-            <h4 className="text-xs font-mono font-bold text-[#2F241F] border-b border-[#2F241F]/10 pb-2 mb-3">
-              [Telemetry Data Log] Active Joint Coordinates
-            </h4>
-            <div className="max-h-[140px] overflow-y-auto font-mono text-[10px] text-slate-600 grid grid-cols-2 gap-x-6 gap-y-1 pr-2">
-              {rawCoordinates.length > 0 ? (
-                rawCoordinates.slice(0, 10).map((pt, idx) => (
-                  <div key={idx} className="flex justify-between border-b border-[#2F241F]/5 py-0.5">
-                    <span>Joint #{idx}:</span>
-                    <span className="text-[#3D4F73]">
-                      ({pt.x.toFixed(3)}, {pt.y.toFixed(3)}, {pt.z.toFixed(3)})
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <span className="col-span-full text-slate-500 text-center py-2">
-                  Waiting for active coordinate fitting frame logs...
-                </span>
-              )}
-            </div>
-          </div>
         </div>
 
-        {/* Right Column: Calculations & Logging */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
-          {/* Sign configuration card */}
+        {/* Right Column: AI Tutor & Logging */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
           <div className="lab-card p-6">
             <span className="font-mono text-[10px] text-[#B5651D] font-bold uppercase tracking-wider block mb-1">
-              TARGET EXPERIMENT
+              TARGET GESTURE
             </span>
             <h3 className="text-3xl font-black text-[#2F241F] mb-1">
-              Sign: {currentSign.name || "None Selected"}
+              Sign: {currentSign.name}
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed mb-4">
               {currentSign.description || "Select a lesson to begin."}
             </p>
 
             <div className="bg-[#F5EBD7] border border-[#2F241F]/15 rounded-lg p-3 text-[11px] text-slate-600 leading-relaxed font-mono">
-              <strong className="text-[#3D4F73] block mb-1">Configuration instructions:</strong>
+              <strong className="text-[#3D4F73] block mb-1">Instructions:</strong>
               {currentSign.guide || "No instructions loaded."}
             </div>
           </div>
@@ -309,24 +369,27 @@ export default function PracticePage() {
             accuracyScore={similarityScore}
             feedbackText={feedback}
             isActive={webcamActive}
+            incorrectFingers={incorrectFingers}
+            missingMovement={missingMovement}
+            mode={signMode}
+            sequenceState={sequenceState}
           />
 
-          {/* Calculations / Similarity Score */}
+          {/* Similarity Score */}
           <div className="lab-card p-6 relative">
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 mb-4">
-              Similarity Score Computation
+              Accuracy / Progress Score
             </h4>
 
             <div className="flex items-baseline gap-2 mb-2">
               <span className="text-5xl font-black font-display text-[#2F241F] tracking-tight">
                 {similarityScore}%
               </span>
-              <span className={`text-xs font-mono font-bold uppercase ${scoreRating.color}`}>
-                ({scoreRating.label})
+              <span className={`text-xs font-mono font-bold uppercase ${similarityScore >= 80 ? "text-emerald-800" : "text-amber-800"}`}>
+                ({similarityScore >= 80 ? "Matched" : "Adjusting"})
               </span>
             </div>
 
-            {/* Simple retro progress bar */}
             <div className="h-4 w-full bg-[#DCC9A3] border border-[#2F241F] rounded overflow-hidden mb-6">
               <div
                 style={{ width: `${similarityScore}%` }}
@@ -334,13 +397,11 @@ export default function PracticePage() {
               />
             </div>
 
-            {/* Record button */}
             <button
               onClick={handleRecordAttempt}
               disabled={similarityScore === 0}
-              className="w-full lab-button py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full lab-button py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
             >
-              <Save className="h-4 w-4" />
               Record Attempt Log
             </button>
           </div>

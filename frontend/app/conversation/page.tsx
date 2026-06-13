@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
-import { evaluateGesture, Landmark } from "@/lib/gestureClassifier";
+import { evaluateGesture, isSignDynamic, Landmark } from "@/lib/gestureClassifier";
 import { MessageSquare, Camera, Sparkles, Send, ChevronRight } from "lucide-react";
 import { useLabStore } from "@/lib/store";
 import AITutorGuide from "@/components/AITutorGuide";
@@ -44,6 +44,9 @@ export default function ConversationPage() {
   const [feedback, setFeedback] = useState("Position your camera.");
   const [isSuccess, setIsSuccess] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [incorrectFingers, setIncorrectFingers] = useState<string[]>([]);
+  const [missingMovement, setMissingMovement] = useState("");
+  const [sequenceState, setSequenceState] = useState("start");
 
   // Fetch scenarios on load
   useEffect(() => {
@@ -196,9 +199,12 @@ export default function ConversationPage() {
               };
             });
 
-            const evaluation = evaluateGesture(targetSign, handsData);
+            const evaluation = evaluateGesture(targetSign, handsData, selectedRegion);
             setFeedback(evaluation.feedback);
             setAccuracy(evaluation.score);
+            setIncorrectFingers(evaluation.incorrectFingers || []);
+            setMissingMovement(evaluation.missingMovement || "");
+            setSequenceState(evaluation.sequenceState || "moving");
 
             if (evaluation.isMatch && evaluation.score >= 0.85) {
               setIsSuccess(true);
@@ -224,6 +230,9 @@ export default function ConversationPage() {
           } else {
             setAccuracy(0);
             setFeedback("Please show your hand in front of the camera.");
+            setIncorrectFingers([]);
+            setMissingMovement("");
+            setSequenceState("start");
           }
         }
       }
@@ -377,6 +386,10 @@ export default function ConversationPage() {
               accuracyScore={accuracy}
               feedbackText={feedback}
               isActive={webcamActive}
+              incorrectFingers={incorrectFingers}
+              missingMovement={missingMovement}
+              mode={isSignDynamic(selectedScenario.steps[currentStepIdx].answer) ? "dynamic" : "static"}
+              sequenceState={sequenceState}
             />
           </div>
         )}

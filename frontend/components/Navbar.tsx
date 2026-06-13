@@ -60,6 +60,37 @@ export default function Navbar() {
                 </Link>
               );
             })}
+
+            {/* Research Dropdown */}
+            <div className="relative group">
+              <button className={`px-3 py-1.5 rounded-t-lg text-xs sm:text-sm font-bold border-2 border-b-0 border-[#2F241F] transition-all flex items-center gap-1 ${
+                pathname.startsWith("/research")
+                  ? "bg-[#F5EBD7] text-[#2F241F]"
+                  : "bg-[#DCC9A3] text-[#2F241F]/80 hover:bg-[#F5EBD7]"
+              }`}>
+                🧪 Research Lab <span className="text-[10px]">▼</span>
+              </button>
+              <div className="absolute right-0 top-[30px] hidden group-hover:block bg-[#E8DCC4] border-2 border-[#2F241F] rounded shadow-[4px_4px_0px_#2F241F] py-1 min-w-[170px] z-50 font-mono text-xs">
+                <Link href="/research/debug-center" className="block px-4 py-2.5 text-[#2F241F] hover:bg-[#DCC9A3] border-b border-[#2F241F]/10 font-bold">
+                  🔬 Debug Center
+                </Link>
+                <Link href="/research/landmark-collector" className="block px-4 py-2.5 text-[#2F241F] hover:bg-[#DCC9A3] border-b border-[#2F241F]/10 font-bold">
+                  💾 Landmark Collector
+                </Link>
+                <Link href="/research/features" className="block px-4 py-2.5 text-[#2F241F] hover:bg-[#DCC9A3] border-b border-[#2F241F]/10 font-bold">
+                  📂 Features Inspector
+                </Link>
+                <Link href="/research/model-training" className="block px-4 py-2.5 text-[#2F241F] hover:bg-[#DCC9A3] border-b border-[#2F241F]/10 font-bold">
+                  ⚙️ Model Training
+                </Link>
+                <Link href="/research/model-comparison" className="block px-4 py-2.5 text-[#2F241F] hover:bg-[#DCC9A3] border-b border-[#2F241F]/10 font-bold">
+                  ⚖️ Model Comparison
+                </Link>
+                <Link href="/research/experiments" className="block px-4 py-2.5 text-[#2F241F] font-bold">
+                  📜 Experiments Registry
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -4,6 +4,107 @@ export interface ReferenceLandmark {
   z: number;
 }
 
+export interface FingerStates {
+  isThumbExtended: boolean;
+  isIndexExtended: boolean;
+  isMiddleExtended: boolean;
+  isRingExtended: boolean;
+  isPinkyExtended: boolean;
+}
+
+export function getExpectedFingerStates(signName: string): FingerStates {
+  const name = signName.toUpperCase().trim();
+
+  // Defaults: all extended (for 5, HELLO, GOODBYE, B, PLEASE, THANK YOU, C, etc.)
+  let isThumbExtended = true;
+  let isIndexExtended = true;
+  let isMiddleExtended = true;
+  let isRingExtended = true;
+  let isPinkyExtended = true;
+
+  if (name === "1" || name === "D" || name === "GOOD MORNING" || name === "Z") {
+    isThumbExtended = false;
+    isIndexExtended = true;
+    isMiddleExtended = false;
+    isRingExtended = false;
+    isPinkyExtended = false;
+  } else if (name === "2" || name === "U" || name === "V" || name === "R" || name === "K" || name === "H" || name === "P") {
+    isThumbExtended = false;
+    isIndexExtended = true;
+    isMiddleExtended = true;
+    isRingExtended = false;
+    isPinkyExtended = false;
+  } else if (name === "3" || name === "W") {
+    isThumbExtended = false;
+    isIndexExtended = true;
+    isMiddleExtended = true;
+    isRingExtended = true;
+    isPinkyExtended = false;
+  } else if (name === "4") {
+    isThumbExtended = false;
+    isIndexExtended = true;
+    isMiddleExtended = true;
+    isRingExtended = true;
+    isPinkyExtended = true;
+  } else if (name === "F") {
+    isThumbExtended = false;
+    isIndexExtended = false;
+    isMiddleExtended = true;
+    isRingExtended = true;
+    isPinkyExtended = true;
+  } else if (name === "0" || name === "O" || name === "E" || name === "M" || name === "N" || name === "S" || name === "T" || name === "X") {
+    isThumbExtended = false;
+    isIndexExtended = false;
+    isMiddleExtended = false;
+    isRingExtended = false;
+    isPinkyExtended = false;
+  } else if (name === "A" || name === "YES" || name === "NO" || name === "SORRY") {
+    isThumbExtended = true;
+    isIndexExtended = false;
+    isMiddleExtended = false;
+    isRingExtended = false;
+    isPinkyExtended = false;
+  } else if (name === "L" || name === "G" || name === "Q") {
+    isThumbExtended = true;
+    isIndexExtended = true;
+    isMiddleExtended = false;
+    isRingExtended = false;
+    isPinkyExtended = false;
+  } else if (name === "Y") {
+    isThumbExtended = true;
+    isIndexExtended = false;
+    isMiddleExtended = false;
+    isRingExtended = false;
+    isPinkyExtended = true;
+  } else if (name === "I" || name === "J" || name === "FRIEND") {
+    isThumbExtended = false;
+    isIndexExtended = false;
+    isMiddleExtended = false;
+    isRingExtended = false;
+    isPinkyExtended = true;
+  } else if (name === "I LOVE YOU" || name === "I_LOVE_YOU") {
+    isThumbExtended = true;
+    isIndexExtended = true;
+    isMiddleExtended = false;
+    isRingExtended = false;
+    isPinkyExtended = true;
+  } else if (name === "C") {
+    isThumbExtended = true;
+    isIndexExtended = true;
+    isMiddleExtended = true;
+    isRingExtended = true;
+    isPinkyExtended = true;
+  }
+
+  return {
+    isThumbExtended,
+    isIndexExtended,
+    isMiddleExtended,
+    isRingExtended,
+    isPinkyExtended
+  };
+}
+
 // Generates reference 21 landmarks for a target gesture
 export function getReferenceLandmarks(signName: string): ReferenceLandmark[] {
   const name = signName.toUpperCase().trim();
@@ -51,69 +152,12 @@ export function getReferenceLandmarks(signName: string): ReferenceLandmark[] {
   };
 
   // Determine which fingers are extended based on signName
-  let isThumbExtended = true;
-  let isIndexExtended = true;
-  let isMiddleExtended = true;
-  let isRingExtended = true;
-  let isPinkyExtended = true;
-
-  if (name === "1") {
-    isThumbExtended = false;
-    isIndexExtended = true;
-    isMiddleExtended = false;
-    isRingExtended = false;
-    isPinkyExtended = false;
-  } else if (name === "2" || name === "FRIEND") {
-    isThumbExtended = false;
-    isIndexExtended = true;
-    isMiddleExtended = true;
-    isRingExtended = false;
-    isPinkyExtended = false;
-  } else if (name === "3") {
-    isThumbExtended = true;
-    isIndexExtended = true;
-    isMiddleExtended = true;
-    isRingExtended = false;
-    isPinkyExtended = false;
-  } else if (name === "4") {
-    isThumbExtended = false;
-    isIndexExtended = true;
-    isMiddleExtended = true;
-    isRingExtended = true;
-    isPinkyExtended = true;
-  } else if (name === "5" || name === "HELLO" || name === "GOODBYE" || name === "B" || name === "PLEASE") {
-    isThumbExtended = true;
-    isIndexExtended = true;
-    isMiddleExtended = true;
-    isRingExtended = true;
-    isPinkyExtended = true;
-  } else if (name === "0") {
-    // Both thumb and index curled to touch
-    isThumbExtended = false;
-    isIndexExtended = false;
-    isMiddleExtended = false;
-    isRingExtended = false;
-    isPinkyExtended = false;
-  } else if (name === "A" || name === "YES" || name === "NO" || name === "SORRY") {
-    isThumbExtended = true; // thumb on side
-    isIndexExtended = false;
-    isMiddleExtended = false;
-    isRingExtended = false;
-    isPinkyExtended = false;
-  } else if (name === "I LOVE YOU" || name === "I_LOVE_YOU") {
-    isThumbExtended = true;
-    isIndexExtended = true;
-    isMiddleExtended = false;
-    isRingExtended = false;
-    isPinkyExtended = true;
-  } else if (name === "C") {
-    // Semi-curved shape for C
-    isThumbExtended = true;
-    isIndexExtended = true;
-    isMiddleExtended = true;
-    isRingExtended = true;
-    isPinkyExtended = true;
-  }
+  const expected = getExpectedFingerStates(name);
+  const isThumbExtended = expected.isThumbExtended;
+  const isIndexExtended = expected.isIndexExtended;
+  const isMiddleExtended = expected.isMiddleExtended;
+  const isRingExtended = expected.isRingExtended;
+  const isPinkyExtended = expected.isPinkyExtended;
 
   // Thumb special generation
   const thumbJoints: ReferenceLandmark[] = [];

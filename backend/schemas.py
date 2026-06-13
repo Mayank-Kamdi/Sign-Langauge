@@ -82,3 +82,81 @@ class DashboardResponse(BaseModel):
     weak_areas: List[str]
     recent_progress: List[ProgressResponse]
     unlocked_badges: List[BadgeResponse]
+
+# Research Schemas
+class LandmarkCoord(BaseModel):
+    x: float
+    y: float
+    z: float
+
+class DatasetSampleCreate(BaseModel):
+    sign_name: str
+    user_id: Optional[str] = "researcher_1"
+    handedness: str
+    landmarks: List[LandmarkCoord]
+    session_number: Optional[int] = 1
+
+class DatasetSampleResponse(BaseModel):
+    id: int
+    sign_name: str
+    user_id: Optional[str]
+    timestamp: datetime.datetime
+    handedness: str
+    landmarks: str  # Raw serialized string
+    session_number: int
+
+    class Config:
+        from_attributes = True
+
+class ExperimentCreate(BaseModel):
+    name: str
+    dataset_version: str
+    model_used: str
+    accuracy: float
+    notes: Optional[str] = None
+
+class ExperimentResponse(BaseModel):
+    id: int
+    name: str
+    date: datetime.datetime
+    dataset_version: str
+    model_used: str
+    accuracy: float
+    notes: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+class TrainRequest(BaseModel):
+    model_name: str  # 'Random Forest', 'SVM', 'KNN', 'MLP'
+    train_split: float
+    val_split: float
+    test_split: float
+    features: str  # 'Raw Landmarks', 'Finger Angles', 'Joint Distances', 'Combined Features'
+
+class EpochMetric(BaseModel):
+    epoch: int
+    accuracy: float
+    val_accuracy: float
+    loss: float
+    val_loss: float
+
+class ClassMetric(BaseModel):
+    class_name: str
+    precision: float
+    recall: float
+    f1_score: float
+    support: int
+
+class TrainResponse(BaseModel):
+    accuracy: float
+    precision: float
+    recall: float
+    f1_score: float
+    training_time_ms: int
+    epochs_data: List[EpochMetric]
+    confusion_matrix: List[List[int]]
+    classes: List[str]
+    per_class_metrics: List[ClassMetric]
+    roc_curve: List[List[float]]  # List of [fpr, tpr]
+
