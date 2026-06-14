@@ -28,8 +28,14 @@ export function getExpectedFingerStates(signName: string): FingerStates {
     isMiddleExtended = false;
     isRingExtended = false;
     isPinkyExtended = false;
-  } else if (name === "2" || name === "U" || name === "V" || name === "R" || name === "K" || name === "H" || name === "P") {
+  } else if (name === "2" || name === "U" || name === "V" || name === "R" || name === "H") {
     isThumbExtended = false;
+    isIndexExtended = true;
+    isMiddleExtended = true;
+    isRingExtended = false;
+    isPinkyExtended = false;
+  } else if (name === "K" || name === "P") {
+    isThumbExtended = true;
     isIndexExtended = true;
     isMiddleExtended = true;
     isRingExtended = false;
@@ -49,6 +55,12 @@ export function getExpectedFingerStates(signName: string): FingerStates {
   } else if (name === "F") {
     isThumbExtended = false;
     isIndexExtended = false;
+    isMiddleExtended = true;
+    isRingExtended = true;
+    isPinkyExtended = true;
+  } else if (name === "B") {
+    isThumbExtended = false;
+    isIndexExtended = true;
     isMiddleExtended = true;
     isRingExtended = true;
     isPinkyExtended = true;

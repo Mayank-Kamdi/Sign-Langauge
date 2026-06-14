@@ -31,18 +31,12 @@ export function getDistance(a: Landmark, b: Landmark): number {
 // Helper: Check if finger is extended
 export function isFingerExtended(
   landmarks: Landmark[],
-  mcpIndex: number,
+  wristIndex: number,
   pipIndex: number,
-  dipIndex: number,
   tipIndex: number
 ): boolean {
-  const mcpToTip = getDistance(landmarks[mcpIndex], landmarks[tipIndex]);
-  const segmentsSum =
-    getDistance(landmarks[mcpIndex], landmarks[pipIndex]) +
-    getDistance(landmarks[pipIndex], landmarks[dipIndex]) +
-    getDistance(landmarks[dipIndex], landmarks[tipIndex]);
-  
-  return mcpToTip > segmentsSum * 0.60;
+  // If tip is further from the wrist than the PIP joint, it is extended
+  return getDistance(landmarks[tipIndex], landmarks[wristIndex]) > getDistance(landmarks[pipIndex], landmarks[wristIndex]);
 }
 
 // Helper: Check if sign is dynamic
@@ -71,12 +65,18 @@ export function evaluateStaticGesture(
   const primaryHand = hands[0];
   const lm = primaryHand.landmarks;
 
-  // Finger extension states
-  const thumbExtended = getDistance(lm[4], lm[9]) > getDistance(lm[2], lm[9]) * 1.0;
-  const indexExtended = isFingerExtended(lm, 5, 6, 7, 8);
-  const middleExtended = isFingerExtended(lm, 9, 10, 11, 12);
-  const ringExtended = isFingerExtended(lm, 13, 14, 15, 16);
-  const pinkyExtended = isFingerExtended(lm, 17, 18, 19, 20);
+  // Finger extension states (Wrist is landmark 0)
+  // Index PIP: 6, Tip: 8
+  const indexExtended = isFingerExtended(lm, 0, 6, 8);
+  // Middle PIP: 10, Tip: 12
+  const middleExtended = isFingerExtended(lm, 0, 10, 12);
+  // Ring PIP: 14, Tip: 16
+  const ringExtended = isFingerExtended(lm, 0, 14, 16);
+  // Pinky PIP: 18, Tip: 20
+  const pinkyExtended = isFingerExtended(lm, 0, 18, 20);
+
+  // Thumb extended: Tip (4) is further from Index MCP (5) than Thumb MCP (2) is from Index MCP (5)
+  const thumbExtended = getDistance(lm[4], lm[5]) > getDistance(lm[2], lm[5]) * 0.95;
 
   // Expected extensions from reference templates
   const expected = getExpectedFingerStates(targetSign);
@@ -152,8 +152,8 @@ export function evaluateDynamicGesture(
   const lastFrame = frames[frames.length - 1];
   const primaryHand = lastFrame[0];
   const lm = primaryHand.landmarks;
-  const indexExtended = isFingerExtended(lm, 5, 6, 7, 8);
-  const thumbExtended = getDistance(lm[4], lm[9]) > getDistance(lm[2], lm[9]) * 1.15;
+  const indexExtended = isFingerExtended(lm, 0, 6, 8);
+  const thumbExtended = getDistance(lm[4], lm[5]) > getDistance(lm[2], lm[5]) * 0.95;
 
   if (name === "HELLO" || name === "GOODBYE") {
     // Waving gesture: horizontal coordinate oscillations
