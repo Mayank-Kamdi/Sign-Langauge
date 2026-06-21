@@ -12,6 +12,10 @@ export interface SignLesson {
   description: string;
   guide: string;
   category: string;
+  isStatic: boolean;
+  handImageUrl?: string;
+  gestureSteps?: string[];
+  referenceVideoUrl?: string;
 }
 
 interface LabState {
@@ -37,7 +41,7 @@ export const useLabStore = create<LabState>((set, get) => ({
   webcamActive: false,
   attempts: [],
   lessons: [],
-  selectedRegion: "ISL",
+  selectedRegion: "ASL",
   isLoadingLessons: false,
 
   selectSign: (index) => set({ currentSignIndex: index }),
@@ -80,7 +84,11 @@ export const useLabStore = create<LabState>((set, get) => ({
         name: item.name,
         description: item.description || "",
         guide: item.visual_guide || "",
-        category: item.category
+        category: item.category,
+        isStatic: item.is_static,
+        handImageUrl: item.hand_image_url || "",
+        gestureSteps: item.gesture_steps ? JSON.parse(item.gesture_steps) : [],
+        referenceVideoUrl: item.reference_video_url || ""
       }));
       
       let newIndex = 0;
@@ -96,12 +104,10 @@ export const useLabStore = create<LabState>((set, get) => ({
       console.error("Failed to load lessons", err);
       // Fallback local lessons if backend is offline
       const fallbackLessons = [
-        { name: "Hello", description: "Standard salutary greeting gesture.", guide: "Place your dominant hand near your forehead in a salute-like posture, then extend fingers outward.", category: "phrases" },
-        { name: "Thank You", description: "Expression of appreciation or gratitude.", guide: "Touch your fingertips to your chin, then wave your hand down and forward toward the camera.", category: "phrases" },
-        { name: "Yes", description: "Affirmative confirmation response.", guide: "Make a loose fist with your dominant hand and rock/nod it up and down from the wrist.", category: "phrases" },
-        { name: "No", description: "Negative disagreement response.", guide: "Bring your index finger, middle finger, and thumb together, snapping them closed.", category: "phrases" },
-        { name: "Please", description: "Polite request sign.", guide: "Place your dominant hand flat on the center of your chest and rotate it in a circular motion.", category: "phrases" },
-        { name: "Sorry", description: "Expression of apology or regret.", guide: "Form a fist and rub it in a circular motion over your chest.", category: "phrases" },
+        { name: "Hello", description: "Standard salutary greeting gesture.", guide: "Place your dominant hand near your forehead in a salute-like posture, then extend fingers outward.", category: "phrases", isStatic: false, handImageUrl: "/assets/signs/asl/hello.svg", gestureSteps: ["Bring dominant hand to temple.", "Move hand outward in salute.", "Palm facing out."], referenceVideoUrl: "https://www.youtube.com/embed/demo_asl_hello" },
+        { name: "Thank You", description: "Expression of appreciation or gratitude.", guide: "Touch your fingertips to your chin, then wave your hand down and forward toward the camera.", category: "phrases", isStatic: false, handImageUrl: "/assets/signs/asl/thank_you.svg", gestureSteps: ["Touch fingertips to chin.", "Bring hand down and outward.", "Palm facing up."], referenceVideoUrl: "https://www.youtube.com/embed/demo_asl_thank_you" },
+        { name: "Yes", description: "Affirmative confirmation response.", guide: "Make a loose fist with your dominant hand and rock/nod it up and down from the wrist.", category: "phrases", isStatic: false, handImageUrl: "/assets/signs/asl/yes.svg", gestureSteps: ["Form a loose fist.", "Nod fist up and down from wrist.", "Forearm remains still."], referenceVideoUrl: "https://www.youtube.com/embed/demo_asl_yes" },
+        { name: "No", description: "Negative disagreement response.", guide: "Bring your index finger, middle finger, and thumb together, snapping them closed.", category: "phrases", isStatic: false, handImageUrl: "/assets/signs/asl/no.svg", gestureSteps: ["Extend index/middle fingers.", "Tuck other fingers.", "Quickly tap them down to thumb."], referenceVideoUrl: "https://www.youtube.com/embed/demo_asl_no" },
       ];
       const prevSignName = get().lessons[get().currentSignIndex]?.name;
       let newIndex = 0;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, BookMarked, Filter, ChevronRight, HelpCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { useLabStore } from "@/lib/store";
 
 interface Sign {
   id: number;
@@ -11,6 +12,7 @@ interface Sign {
   description: string;
   visual_guide: string;
   difficulty: string;
+  region?: string;
 }
 
 export default function DictionaryPage() {
@@ -18,15 +20,17 @@ export default function DictionaryPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [selectedSign, setSelectedSign] = useState<Sign | null>(null);
+  const { selectedRegion } = useLabStore();
 
   // Load signs
   useEffect(() => {
     async function fetchSigns() {
       try {
-        const res = await fetch("http://localhost:8000/api/dictionary");
+        const res = await fetch(`http://localhost:8000/api/dictionary?region=${selectedRegion}`);
         if (res.ok) {
           const data = await res.json();
           setSigns(data);
+          if (data.length > 0) setSelectedSign(data[0]);
         } else {
           throw new Error();
         }
@@ -40,9 +44,10 @@ export default function DictionaryPage() {
             id: mockSigns.length + 1,
             name: char,
             category: "alphabets",
-            description: `Indian Sign Language representation for alphabet letter '${char}'.`,
+            description: `${selectedRegion} Sign Language representation for alphabet letter '${char}'.`,
             visual_guide: `Position your hand or hands to demonstrate the visual layout of '${char}'.`,
             difficulty: "easy",
+            region: selectedRegion,
           });
         }
         
@@ -52,9 +57,10 @@ export default function DictionaryPage() {
             id: mockSigns.length + 1,
             name: String(num),
             category: "numbers",
-            description: `Indian Sign Language representation for number '${num}'.`,
+            description: `${selectedRegion} Sign Language representation for number '${num}'.`,
             visual_guide: `Hold up the corresponding fingers representing '${num}'.`,
             difficulty: "easy",
+            region: selectedRegion,
           });
         }
         
@@ -84,6 +90,7 @@ export default function DictionaryPage() {
             description: `Common conversation greeting or statement: "${phrase.name}".`,
             visual_guide: phrase.guide,
             difficulty: phrase.diff,
+            region: selectedRegion,
           });
         });
         
@@ -92,7 +99,7 @@ export default function DictionaryPage() {
       }
     }
     fetchSigns();
-  }, []);
+  }, [selectedRegion]);
 
   const filteredSigns = signs.filter((sign) => {
     const matchesSearch = sign.name.toLowerCase().includes(search.toLowerCase());
@@ -105,9 +112,16 @@ export default function DictionaryPage() {
       {/* Left Column: List with search/filter */}
       <div className="lg:col-span-7 flex flex-col gap-6">
         <div>
-          <h1 className="text-3xl font-extrabold text-white mb-2">ISL Sign Dictionary</h1>
-          <p className="text-slate-400">Search, explore, and learn 50 Indian Sign Language gestures.</p>
+          <h1 className="text-3xl font-extrabold text-[#2F241F] mb-2">{selectedRegion} Sign Dictionary</h1>
+          <p className="text-slate-600">Search, explore, and learn {selectedRegion} Sign Language gestures.</p>
         </div>
+
+        {(selectedRegion === "ISL" || selectedRegion === "BSL") && (
+          <div className="p-4 bg-[#C9A227]/10 border border-[#C9A227]/30 rounded-lg text-xs font-mono text-[#2F241F]">
+            ⚠️ <strong>Two-Handed Language Notice:</strong> {selectedRegion} manual alphabets are traditionally two-handed. 
+            Because our camera tracker is currently optimized for one-handed signs, we recommend switching the mode in the top menu to <strong>ASL (American Sign Language)</strong> for correct reference signs and real-time detection.
+          </div>
+        )}
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row gap-4 items-center">

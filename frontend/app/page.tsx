@@ -33,7 +33,7 @@ export default function Home() {
               SignVerse AI
             </h1>
             <p className="text-sm font-mono text-[#3D4F73] mt-2">
-              Phase 1 Research Prototype: ISL Gesture Recognition
+              Phase 1 Research Prototype: ASL Gesture Recognition
             </p>
           </div>
 
@@ -44,8 +44,8 @@ export default function Home() {
               Experimental Objectives
             </h3>
             <p className="text-sm leading-relaxed text-[#3B3B3B]">
-              This workstation serves as a research platform evaluating the viability of client-side, real-time computer vision heuristics for teaching Indian Sign Language (ISL). 
-              The prototype accesses local webcam hardware, tracks hand joints, and logs similarity configurations against structured sign representations.
+              This workstation serves as a research platform evaluating the viability of client-side, real-time computer vision heuristics for teaching American Sign Language (ASL) fingerspelling. 
+              The prototype accesses local webcam hardware, tracks 21 hand joints, and logs similarity configurations against structured sign representations.
             </p>
           </div>
 

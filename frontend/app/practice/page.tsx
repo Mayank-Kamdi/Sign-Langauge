@@ -33,6 +33,7 @@ export default function PracticePage() {
   const [detectedHandsCount, setDetectedHandsCount] = useState(0);
   const [confidence, setConfidence] = useState(0);
   const [rawCoordinates, setRawCoordinates] = useState<Landmark[]>([]);
+  const [analysisHud, setAnalysisHud] = useState(false);
 
   // Telemetry trajectory queue for dynamic gestures
   const [trajectoryQueue, setTrajectoryQueue] = useState<any[][]>([]);
@@ -203,6 +204,34 @@ export default function PracticePage() {
               });
             }
 
+            // Draw expected reference skeleton overlay if Analysis HUD is enabled
+            if (analysisHud) {
+              const refLandmarks = getReferenceLandmarks(currentSign.name);
+              if (refLandmarks && refLandmarks.length > 0) {
+                const drawRefLine = (pt1: number, pt2: number) => {
+                  ctx.beginPath();
+                  ctx.moveTo(refLandmarks[pt1].x * canvas.width, refLandmarks[pt1].y * canvas.height);
+                  ctx.lineTo(refLandmarks[pt2].x * canvas.width, refLandmarks[pt2].y * canvas.height);
+                  ctx.strokeStyle = "rgba(61, 79, 115, 0.45)";
+                  ctx.lineWidth = 6;
+                  ctx.stroke();
+                };
+                for (let i = 0; i < 4; i++) drawRefLine(i, i + 1);
+                for (let i = 5; i < 8; i++) drawRefLine(i, i + 1);
+                for (let i = 9; i < 12; i++) drawRefLine(i, i + 1);
+                for (let i = 13; i < 16; i++) drawRefLine(i, i + 1);
+                for (let i = 17; i < 20; i++) drawRefLine(i, i + 1);
+                drawRefLine(0, 5); drawRefLine(5, 9); drawRefLine(9, 13); drawRefLine(13, 17); drawRefLine(0, 17);
+
+                refLandmarks.forEach((pt, idx) => {
+                  ctx.beginPath();
+                  ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 4, 0, 2 * Math.PI);
+                  ctx.fillStyle = "rgba(85, 107, 47, 0.55)";
+                  ctx.fill();
+                });
+              }
+            }
+
             // Draw active skeleton with correction highlights
             results.landmarks.forEach((landmarks) => {
               const drawLine = (pt1: number, pt2: number, color: string) => {
@@ -263,7 +292,7 @@ export default function PracticePage() {
 
     runDetection();
     return () => cancelAnimationFrame(frameId);
-  }, [webcamActive, landmarker, currentSignIndex, currentSign.name, signMode]);
+  }, [webcamActive, landmarker, currentSignIndex, currentSign.name, signMode, analysisHud]);
 
   const handleRecordAttempt = () => {
     logAttempt(currentSign.name, similarityScore);
@@ -294,14 +323,74 @@ export default function PracticePage() {
             </h2>
           </div>
 
-          {/* Skeletons Layout */}
+          <div className="flex justify-between items-center bg-[#E8DCC4] p-3 rounded-lg border-2 border-[#2F241F] mt-1">
+            <span className="text-xs font-mono font-bold text-[#2F241F]">
+              Select Reference Mode:
+            </span>
+            <button
+              onClick={() => setAnalysisHud(!analysisHud)}
+              className="px-3 py-1.5 bg-[#DCC9A3] hover:bg-[#F5EBD7] text-[#2F241F] border-2 border-[#2F241F] rounded font-mono text-xs font-bold transition-all shadow-[2px_2px_0px_#2F241F]"
+            >
+              {analysisHud ? "Show Verified Demonstration" : "Show Analysis HUD (Skeleton)"}
+            </button>
+          </div>
+
+          {(selectedRegion === "ISL" || selectedRegion === "BSL") && (
+            <div className="p-4 bg-[#C9A227]/10 border border-[#C9A227]/30 rounded-lg text-xs font-mono text-[#2F241F]">
+              ⚠️ <strong>Two-Handed Language Notice:</strong> {selectedRegion} manual alphabets are traditionally two-handed. 
+              Because our camera tracker is currently optimized for one-handed signs, we recommend switching the mode in the top menu to <strong>ASL (American Sign Language)</strong> for correct reference signs and real-time detection.
+            </div>
+          )}
+
+          {/* Skeletons/Demonstrations Layout */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left: Expected Posture */}
+            {/* Left: Expected Posture / Verified Photo */}
             <div className="flex flex-col gap-2">
-              <span className="font-mono text-[10px] text-slate-500 uppercase font-bold block">EXPECTED REFERENCE SHAPE</span>
-              <div className="bg-[#22252A] rounded-xl border-2 border-[#2F241F] aspect-video relative flex items-center justify-center overflow-hidden">
-                <canvas ref={expectedCanvasRef} width={320} height={240} className="w-full h-full object-contain" />
-              </div>
+              <span className="font-mono text-[10px] text-slate-500 uppercase font-bold block">
+                {analysisHud ? "ANALYSIS HUD (EXPECTED TARGET)" : "VERIFIED SIGN DEMONSTRATION"}
+              </span>
+              {analysisHud ? (
+                <div className="bg-[#22252A] rounded-xl border-2 border-[#2F241F] aspect-video relative flex items-center justify-center overflow-hidden">
+                  <canvas ref={expectedCanvasRef} width={320} height={240} className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="bg-[#E8DCC4] rounded-xl border-2 border-[#2F241F] aspect-video relative flex flex-col justify-between overflow-hidden p-4">
+                  <div className="flex-1 flex items-center justify-center relative min-h-0 h-32">
+                    {currentSign.handImageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={currentSign.handImageUrl}
+                        alt={`${currentSign.name} sign representation`}
+                        className="max-h-full max-w-full object-contain p-1"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                          const parent = (e.target as HTMLElement).parentElement;
+                          if (parent) {
+                            const fallback = parent.querySelector(".fallback-photo");
+                            if (fallback) fallback.classList.remove("hidden");
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <div className={`fallback-photo absolute inset-0 bg-[#2F241F]/5 font-mono text-[9px] flex flex-col items-center justify-center text-[#2F241F]/60 select-none ${currentSign.handImageUrl ? "hidden" : ""}`}>
+                      <span className="text-xl mb-1">📖</span>
+                      <span>[ VERIFIED REFERENCE STUDY PHOTO ]</span>
+                    </div>
+                  </div>
+                  {currentSign.gestureSteps && currentSign.gestureSteps.length > 0 && (
+                    <div className="bg-[#F5EBD7] border border-[#2F241F]/15 rounded-lg p-2.5 mt-2 overflow-y-auto max-h-24">
+                      <span className="text-[9px] font-mono font-bold text-[#B5651D] uppercase tracking-wider block mb-1">
+                        📖 Sequence Steps:
+                      </span>
+                      <ol className="list-decimal pl-4 text-[9px] text-slate-700 font-mono space-y-0.5">
+                        {currentSign.gestureSteps.map((step: string, idx: number) => (
+                          <li key={idx} className="leading-normal">{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Right: Active Webcam Skeleton */}
@@ -342,6 +431,19 @@ export default function PracticePage() {
               <span className="text-lg font-bold text-[#2F241F]">{Math.round(confidence * 100)}%</span>
             </div>
           </div>
+
+          {/* Educational Guidelines */}
+          <div className="bg-[#F5EBD7] border-2 border-[#2F241F] rounded-xl p-4 shadow-[2px_2px_0px_#2F241F] font-mono text-xs text-[#2F241F] leading-relaxed">
+            <h4 className="font-bold text-[#3D4F73] uppercase text-[10px] tracking-wider mb-2 flex items-center gap-1.5">
+              💡 Observation Deck Guidelines
+            </h4>
+            <ul className="list-disc pl-4 space-y-1 text-[11px] text-[#3B3B3B]">
+              <li><strong>Perfect Lighting:</strong> Make sure your hand is well-lit and clearly visible in the camera frame without heavy shadows.</li>
+              <li><strong>Distance & Position:</strong> Stand or sit about 1 to 2 feet away from the camera. Keep your hand centered in the frame.</li>
+              <li><strong>Steady Posture:</strong> For static signs, hold the target shape steady. For dynamic signs, complete the full motion path at a moderate pace.</li>
+              <li><strong>AI Analysis:</strong> Skeletons are used only for internal detection matching. Focus on the verified study photo and instructions for learning.</li>
+            </ul>
+          </div>
         </div>
 
         {/* Right Column: AI Tutor & Logging */}
@@ -373,6 +475,7 @@ export default function PracticePage() {
             missingMovement={missingMovement}
             mode={signMode}
             sequenceState={sequenceState}
+            showAnalysisHUD={analysisHud}
           />
 
           {/* Similarity Score */}

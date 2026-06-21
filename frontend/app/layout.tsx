@@ -4,7 +4,7 @@ import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
   title: "SignVerse AI - Research Prototype",
-  description: "AI-powered Indian Sign Language (ISL) research laboratory for gesture tracking and similarity classification.",
+  description: "AI-powered American Sign Language (ASL) research laboratory for gesture tracking and similarity classification.",
 };
 
 export default function RootLayout({

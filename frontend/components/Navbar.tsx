@@ -29,7 +29,7 @@ export default function Navbar() {
             </Link>
 
             {/* Region Selector */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative group">
               <span className="text-xs font-bold text-[#2F241F] font-mono hidden md:inline">🌐 MODE:</span>
               <select
                 value={selectedRegion}
@@ -40,6 +40,22 @@ export default function Navbar() {
                 <option value="ASL">🇺🇸 ASL (American)</option>
                 <option value="BSL">🇬🇧 BSL (British)</option>
               </select>
+              
+              {/* Verification support badge */}
+              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-[#2F241F]/30 ${
+                selectedRegion === "ASL" 
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-300" 
+                  : "bg-amber-100 text-amber-800 border-amber-300"
+              }`}>
+                {selectedRegion === "ASL" ? "✓ Real-time AI" : "📚 Study Only"}
+              </span>
+
+              {/* Tooltip info */}
+              <div className="absolute top-full left-0 mt-2 hidden group-hover:block bg-[#F5EBD7] text-[#2F241F] border-2 border-[#2F241F] text-[10px] p-2 rounded shadow-[2px_2px_0px_#2F241F] z-50 w-56 font-mono leading-relaxed">
+                {selectedRegion === "ASL" 
+                  ? "ASL Mode: Full real-time webcam landmark analysis and gesture verification enabled." 
+                  : `${selectedRegion} Mode: Reference library study mode. Sign-by-sign step guides are active, but webcam verification is optimized for ASL.`}
+              </div>
             </div>
           </div>
 

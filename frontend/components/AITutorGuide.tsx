@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { getReferenceLandmarks } from "@/lib/referenceGestures";
-import { Volume2, VolumeX, Sparkles, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { Volume2, VolumeX, Sparkles, AlertTriangle, CheckCircle, Info, Image, Eye } from "lucide-react";
+import { useLabStore } from "@/lib/store";
 
 interface AITutorGuideProps {
   signName: string;
@@ -13,6 +14,7 @@ interface AITutorGuideProps {
   missingMovement?: string;
   mode: "static" | "dynamic";
   sequenceState?: string;
+  showAnalysisHUD?: boolean;
 }
 
 export default function AITutorGuide({
@@ -24,10 +26,18 @@ export default function AITutorGuide({
   missingMovement = "",
   mode,
   sequenceState,
+  showAnalysisHUD: propShowAnalysisHUD,
 }: AITutorGuideProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [speakEnabled, setSpeakEnabled] = useState(false);
+  const [localShowAnalysisHUD, setLocalShowAnalysisHUD] = useState(false);
   const lastSpokenRef = useRef<string>("");
+
+  const showAnalysisHUD = propShowAnalysisHUD !== undefined ? propShowAnalysisHUD : localShowAnalysisHUD;
+  const setShowAnalysisHUD = propShowAnalysisHUD !== undefined ? () => {} : setLocalShowAnalysisHUD;
+  
+  const { lessons, currentSignIndex } = useLabStore();
+  const currentSign = lessons[currentSignIndex] || { description: "", gestureSteps: [], referenceVideoUrl: "" };
 
   let tutorState: "idle" | "thinking" | "guiding" | "correct" = "idle";
   if (!isActive) {
@@ -196,37 +206,92 @@ export default function AITutorGuide({
         </div>
       </div>
 
-      {/* Reference Skeletal Preview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#2F241F]/10 pt-4">
+      {/* Reference Toggle Controls */}
+      <div className="flex justify-between items-center border-t border-[#2F241F]/10 pt-4">
+        <span className="font-mono text-[9px] text-[#3D4F73] font-bold uppercase tracking-wider block">
+          Reference demonstration
+        </span>
+        <button
+          onClick={() => setShowAnalysisHUD(!showAnalysisHUD)}
+          className="px-2.5 py-1 bg-[#DCC9A3] hover:bg-[#F5EBD7] text-[#2F241F] border border-[#2F241F] rounded font-mono text-[9px] font-bold transition-all shadow-[1px_1px_0px_#2F241F] flex items-center gap-1"
+        >
+          <Eye className="h-3 w-3" />
+          {showAnalysisHUD ? "Show Verified Demo" : "Show Analysis HUD"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Left Column: Visual Guide / Skeleton */}
         <div className="flex flex-col gap-2">
-          <span className="font-mono text-[9px] text-[#B5651D] font-bold uppercase tracking-wider flex items-center gap-1">
-            <Sparkles className="h-3.5 w-3.5" /> Reference Pose Target
-          </span>
-          <div className="bg-[#22252A] rounded-xl border-2 border-[#2F241F] p-2 flex items-center justify-center relative aspect-video">
-            <canvas ref={canvasRef} width={250} height={180} className="w-full h-full object-contain" />
-            <div className="absolute top-2 left-2 bg-[#2F241F]/80 px-2 py-0.5 rounded text-[8px] font-mono text-white">
-              Target Posture: {signName} ({mode.toUpperCase()})
+          {showAnalysisHUD ? (
+            <div className="flex flex-col gap-2 h-full">
+              <span className="font-mono text-[9px] text-[#3D4F73] font-bold uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5" /> MediaPipe Analysis HUD
+              </span>
+              <div className="bg-[#22252A] rounded-xl border border-[#2F241F]/20 p-2 flex items-center justify-center relative flex-1 aspect-video">
+                <canvas ref={canvasRef} width={250} height={180} className="w-full h-full object-contain" />
+                <div className="absolute top-2 left-2 bg-[#2F241F]/80 px-2 py-0.5 rounded text-[8px] font-mono text-white">
+                  Debug Skeleton: {signName}
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-2 h-full">
+              <span className="font-mono text-[9px] text-[#B5651D] font-bold uppercase tracking-wider flex items-center gap-1">
+                <Image className="h-3.5 w-3.5" /> Verified Photograph
+              </span>
+              <div className="bg-[#E8DCC4] rounded-xl border border-[#2F241F]/15 p-2 flex items-center justify-center relative flex-1 aspect-video overflow-hidden">
+                {currentSign.handImageUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={currentSign.handImageUrl}
+                    alt={`${signName} verified gesture`}
+                    className="max-h-full max-w-full object-contain p-1"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = "none";
+                      const parent = (e.target as HTMLElement).parentElement;
+                      if (parent) {
+                        const fb = parent.querySelector(".fallback-ref");
+                        if (fb) fb.classList.remove("hidden");
+                      }
+                    }}
+                  />
+                ) : null}
+                <div className={`fallback-ref absolute inset-0 bg-[#2F241F]/5 font-mono text-[9px] flex flex-col items-center justify-center text-[#2F241F]/60 select-none ${currentSign.handImageUrl ? "hidden" : ""}`}>
+                  <span className="text-lg mb-0.5">📖</span>
+                  <span>[ Verified Reference ]</span>
+                </div>
+                <span className="absolute bottom-1 right-2 text-xl font-black text-[#2F241F]/10 select-none">{signName}</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Step-by-Step Instructions & Quality feedback */}
+        {/* Right Column: Educational sequence & feedback */}
         <div className="flex flex-col gap-3 justify-between">
           <div className="space-y-2">
-            <span className="font-mono text-[9px] text-[#3D4F73] font-bold uppercase tracking-wider block">
-              Step-by-step Guide
+            <span className="font-mono text-[9px] text-[#B5651D] font-bold uppercase tracking-wider block">
+              Educational Guide
             </span>
-            <div className="space-y-1 font-mono text-[10px] text-slate-700">
-              {getStepGuide().map((step, idx) => (
-                <div key={idx} className="leading-relaxed">
-                  {step}
-                </div>
-              ))}
-            </div>
+            {currentSign.gestureSteps && currentSign.gestureSteps.length > 0 ? (
+              <ol className="list-decimal pl-4 font-mono text-[9px] text-slate-700 space-y-1">
+                {currentSign.gestureSteps.map((step: string, idx: number) => (
+                  <li key={idx} className="leading-snug">{step}</li>
+                ))}
+              </ol>
+            ) : (
+              <div className="space-y-1 font-mono text-[9px] text-slate-700">
+                {getStepGuide().map((step, idx) => (
+                  <div key={idx} className="leading-relaxed">
+                    {step}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Real-time Diagnostics Alerts */}
-          <div className="bg-[#E8DCC4] p-3 rounded border border-[#2F241F]/15 font-mono text-[10px]">
+          <div className="bg-[#E8DCC4] p-3 rounded border border-[#2F241F]/15 font-mono text-[9px]">
             {mode === "static" ? (
               <div className="space-y-1">
                 <span className="font-bold text-[#B5651D] block">FINGERS STATUS:</span>
