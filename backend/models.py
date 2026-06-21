@@ -36,6 +36,10 @@ class Sign(Base):
     visual_guide = Column(String)  # description or hints on how to perform it
     difficulty = Column(String, default="easy")  # 'easy', 'medium', 'hard'
     region = Column(String, default="ISL", nullable=False)  # 'ISL', 'ASL', 'BSL'
+    is_static = Column(Boolean, default=True)
+    hand_image_url = Column(String, nullable=True)
+    gesture_steps = Column(String, nullable=True)  # JSON-serialized list of steps
+    reference_video_url = Column(String, nullable=True)
 
     progress = relationship("UserProgress", back_populates="sign", cascade="all, delete-orphan")
 

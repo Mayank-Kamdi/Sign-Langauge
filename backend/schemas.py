@@ -49,6 +49,10 @@ class SignBase(BaseModel):
     visual_guide: Optional[str] = None
     difficulty: str
     region: str = "ISL"
+    is_static: bool = True
+    hand_image_url: Optional[str] = None
+    gesture_steps: Optional[str] = None
+    reference_video_url: Optional[str] = None
 
 class SignResponse(SignBase):
     id: int
