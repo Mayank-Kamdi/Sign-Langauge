@@ -2,7 +2,11 @@ import os
 import cv2
 import numpy as np
 import random
-from tensorflow.keras.models import load_model
+try:
+    from tensorflow.keras.models import load_model
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
 
 def find_dataset_root():
     possible_roots = [
@@ -22,6 +26,10 @@ def find_dataset_root():
     return None
 
 def main():
+    if not TENSORFLOW_AVAILABLE:
+        print("Error: tensorflow is not installed. Skipping model test execution.")
+        return
+
     model_path = "./hand_gesture_model.keras"
     if not os.path.exists(model_path):
         print(f"Error: Model file '{model_path}' not found. Please train the model first.")
