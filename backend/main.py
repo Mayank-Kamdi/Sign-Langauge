@@ -10,6 +10,10 @@ from passlib.context import CryptContext
 from database import engine, Base, get_db
 import models
 import schemas
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from train import train_and_evaluate
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -567,115 +571,13 @@ def get_dataset_stats(db: Session = Depends(get_db)):
 
 @app.post("/api/research/ml/train", response_model=schemas.TrainResponse)
 def train_model(req: schemas.TrainRequest, db: Session = Depends(get_db)):
-    # Calculate a realistic training accuracy based on dataset size and model selection
-    total_samples = db.query(models.DatasetSample).count()
-    
-    # Base accuracy between 0.70 and 0.88
-    base_acc_map = {
-        "Random Forest": 0.84,
-        "Support Vector Machine": 0.82,
-        "K-Nearest Neighbor": 0.78,
-        "Multi-Layer Perceptron": 0.86
-    }
-    base_accuracy = base_acc_map.get(req.model_name, 0.80)
-    
-    # Feature engineering multiplier
-    feature_multiplier = {
-        "Raw Landmarks": 0.96,
-        "Finger Angles": 1.02,
-        "Joint Distances": 1.00,
-        "Combined Features": 1.05
-    }.get(req.features, 1.0)
-    
-    # Dataset size multiplier (capped at +8%)
-    dataset_bonus = min(0.08, (total_samples / 100.0) * 0.05) if total_samples > 0 else 0.0
-    
-    final_accuracy = min(0.985, base_accuracy * feature_multiplier + dataset_bonus)
-    
-    # Precision, recall, f1 relative to final accuracy
-    precision = final_accuracy + random.uniform(-0.01, 0.01)
-    recall = final_accuracy + random.uniform(-0.01, 0.01)
-    f1_score = (2 * precision * recall) / (precision + recall)
-    
-    # Mocking training time
-    training_time_ms = int(500 + (total_samples * 15) + (500 if req.model_name == "Multi-Layer Perceptron" else 50))
-    
-    # Epochs data
-    epochs_data = []
-    epochs_count = 15 if req.model_name == "Multi-Layer Perceptron" else 5
-    for i in range(1, epochs_count + 1):
-        progress = i / epochs_count
-        epoch_acc = final_accuracy * (0.6 + 0.4 * progress) + random.uniform(-0.02, 0.02)
-        val_acc = final_accuracy * (0.58 + 0.42 * progress) + random.uniform(-0.02, 0.02)
-        loss = (1.5 - 1.4 * progress) * (1.0 - epoch_acc)
-        val_loss = (1.5 - 1.35 * progress) * (1.0 - val_acc)
-        epochs_data.append(schemas.EpochMetric(
-            epoch=i,
-            accuracy=round(min(0.99, epoch_acc), 4),
-            val_accuracy=round(min(0.99, val_acc), 4),
-            loss=round(max(0.01, loss), 4),
-            val_loss=round(max(0.01, val_loss), 4)
-        ))
-        
-    # Per-class metrics for: ["Hello", "Thank You", "Yes", "No", "Please", "Sorry"]
-    classes = ["Hello", "Thank You", "Yes", "No", "Please", "Sorry"]
-    per_class_metrics = []
-    # Hello and Yes are usually easier, Thank You/Please harder (due to flat hand similarities)
-    class_difficulty = {
-        "Hello": 1.03,
-        "Yes": 1.05,
-        "No": 0.98,
-        "Sorry": 0.99,
-        "Thank You": 0.94,
-        "Please": 0.92
-    }
-    
-    confusion_matrix = [[0 for _ in range(6)] for _ in range(6)]
-    
-    for idx, c_name in enumerate(classes):
-        diff = class_difficulty.get(c_name, 1.0)
-        c_acc = min(0.99, final_accuracy * diff)
-        c_prec = min(0.99, c_acc + random.uniform(-0.02, 0.02))
-        c_rec = min(0.99, c_acc + random.uniform(-0.02, 0.02))
-        c_f1 = (2 * c_prec * c_rec) / (c_prec + c_rec)
-        support = int(max(10, total_samples // 6) + random.randint(-2, 5))
-        
-        per_class_metrics.append(schemas.ClassMetric(
-            class_name=c_name,
-            precision=round(c_prec, 4),
-            recall=round(c_rec, 4),
-            f1_score=round(c_f1, 4),
-            support=support
-        ))
-        
-        # Fill Confusion Matrix row
-        correct_count = int(support * c_rec)
-        confusion_matrix[idx][idx] = correct_count
-        remaining = support - correct_count
-        while remaining > 0:
-            target_idx = random.randint(0, 5)
-            if target_idx != idx:
-                confusion_matrix[idx][target_idx] += 1
-                remaining -= 1
-                
-    # ROC curve points (FPR, TPR)
-    roc_curve = []
-    for fpr in [0.0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9, 1.0]:
-        tpr = 1.0 - (1.0 - fpr) ** (1.0 / (1.0 - final_accuracy + 0.01))
-        roc_curve.append([round(fpr, 3), round(min(1.0, tpr), 3)])
-        
-    return schemas.TrainResponse(
-        accuracy=round(final_accuracy, 4),
-        precision=round(precision, 4),
-        recall=round(recall, 4),
-        f1_score=round(f1_score, 4),
-        training_time_ms=training_time_ms,
-        epochs_data=epochs_data,
-        confusion_matrix=confusion_matrix,
-        classes=classes,
-        per_class_metrics=per_class_metrics,
-        roc_curve=roc_curve
-    )
+    try:
+        metrics = train_and_evaluate(req.model_name, req.features)
+        return metrics
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Model training failed: {str(e)}")
 
 @app.get("/api/research/experiments", response_model=List[schemas.ExperimentResponse])
 def get_experiments(db: Session = Depends(get_db)):

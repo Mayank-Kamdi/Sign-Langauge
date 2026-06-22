@@ -133,9 +133,9 @@ class ExperimentResponse(BaseModel):
 
 class TrainRequest(BaseModel):
     model_name: str  # 'Random Forest', 'SVM', 'KNN', 'MLP'
-    train_split: float
-    val_split: float
-    test_split: float
+    train_split: Optional[float] = 0.75
+    val_split: Optional[float] = 0.0
+    test_split: Optional[float] = 0.25
     features: str  # 'Raw Landmarks', 'Finger Angles', 'Joint Distances', 'Combined Features'
 
 class EpochMetric(BaseModel):
